@@ -242,13 +242,65 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Button Grid.Row="4"
-                                Margin="0,12,0,0"
-                                Style="{StaticResource QuietButtonStyle}"
-                                HorizontalContentAlignment="Center"
-                                Command="{Binding OpenHotkeyCenterCommand}"
-                                Content="快捷键管理"
-                                ToolTip="管理音效热键和紧急停止热键" />
+                        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+                            <Button Style="{StaticResource QuietButtonStyle}"
+                                    HorizontalContentAlignment="Center"
+                                    Command="{Binding OpenHotkeyCenterCommand}"
+                                    Content="快捷键管理"
+                                    ToolTip="管理音效热键和紧急停止热键" />
+                            <Grid Margin="0,8,0,0">
+                                <Button HorizontalContentAlignment="Center"
+                                        Command="{Binding AnalyzeLibraryLoudnessCommand}"
+                                        Content="{Binding BatchLoudnessAnalysisActionText}"
+                                        ToolTip="依次分析资料库中尚无 LUFS 数据的音频">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button HorizontalContentAlignment="Center"
+                                        Foreground="{StaticResource ChampagneTextBrush}"
+                                        Command="{Binding CancelBatchLoudnessAnalysisCommand}"
+                                        Content="取消批量分析">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                            <StackPanel Margin="4,9,4,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <ProgressBar Style="{StaticResource GlassProgressBarStyle}"
+                                             Maximum="100"
+                                             Value="{Binding BatchLoudnessProgressPercent}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="{Binding BatchLoudnessStatus}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding BatchLoudnessStatus}" />
+                            </StackPanel>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -728,7 +780,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.9 · 主总线保护" />
+                            Text="MVP 0.10 · 批量响度分析" />
             </Grid>
         </Grid>
 

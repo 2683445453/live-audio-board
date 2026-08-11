@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveAudioBoard.App.Services;
 using LiveAudioBoard.Core.Abstractions;
+using LiveAudioBoard.Core.Analysis;
 using LiveAudioBoard.Core.Downloads;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
@@ -26,9 +27,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
     private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
+    private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
     private readonly DispatcherTimer _playbackProgressTimer;
     private AppSettings _settings = new();
     private CancellationTokenSource? _loudnessAnalysisCancellation;
+    private CancellationTokenSource? _batchLoudnessAnalysisCancellation;
     private Guid? _primaryPlaybackId;
     private bool _suppressDeviceSelection;
     private bool _disposed;
@@ -53,6 +56,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsStore = settingsStore;
         _mediaStore = mediaStore;
         _loudnessAnalyzer = loudnessAnalyzer;
+        _loudnessBatchAnalysisService = new LoudnessBatchAnalysisService(
+            repository,
+            loudnessAnalyzer);
 
         _playbackProgressTimer = new DispatcherTimer
         {
@@ -157,6 +163,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string LoudnessAnalysisActionText => IsAnalyzingLoudness
         ? "正在分析…"
         : "分析 / 重新分析";
+
+    public int PendingLoudnessAnalysisCount => Clips.Count(NeedsLoudnessAnalysis);
+
+    public string BatchLoudnessAnalysisActionText => PendingLoudnessAnalysisCount == 0
+        ? "响度均已分析"
+        : $"批量分析响度 · {PendingLoudnessAnalysisCount}";
 
     public string OutputDeviceName =>
         SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
@@ -295,11 +307,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
     [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeLibraryLoudnessCommand))]
     [NotifyPropertyChangedFor(nameof(LoudnessAnalysisActionText))]
     private bool isAnalyzingLoudness;
 
     [ObservableProperty]
     private string playbackSettingsStatus = "设置只影响后续播放，不会修改原始音频文件。";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeLibraryLoudnessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelBatchLoudnessAnalysisCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    private bool isBatchLoudnessAnalyzing;
+
+    [ObservableProperty]
+    private double batchLoudnessProgressPercent;
+
+    [ObservableProperty]
+    private string batchLoudnessStatus = "批量分析尚未开始";
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -314,6 +340,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         RefreshOutputDevicesCore(_settings.OutputDeviceId);
         RefreshFilter();
+        RefreshBatchLoudnessAvailability();
         OnPropertyChanged(nameof(EnableEmergencyStopHotkey));
         OnPropertyChanged(nameof(EmergencyStopHotkeyText));
         StatusText = clips.Count == 0
@@ -454,6 +481,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         EnsureCategory("未分类");
         ShowAll();
         RefreshFilter();
+        RefreshBatchLoudnessAvailability();
         StatusText = skipped == 0
             ? $"已导入 {imported} 段音频"
             : $"已导入 {imported} 段，跳过 {skipped} 段无法读取或重复的音频";
@@ -555,6 +583,103 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackSettingsStatus = "播放区间已恢复为完整音频，保存后生效。";
     }
 
+    [RelayCommand(CanExecute = nameof(CanAnalyzeLibraryLoudness))]
+    private async Task AnalyzeLibraryLoudnessAsync()
+    {
+        var targets = Clips
+            .Where(clip => NeedsLoudnessAnalysis(clip))
+            .ToArray();
+        if (targets.Length == 0)
+        {
+            StatusText = "资料库中的音频均已完成响度分析";
+            return;
+        }
+
+        IsBatchLoudnessAnalyzing = true;
+        BatchLoudnessProgressPercent = 0d;
+        BatchLoudnessStatus = $"准备分析 {targets.Length} 段音频…";
+        StatusText = "正在批量分析响度；可继续播放已有音效";
+
+        _batchLoudnessAnalysisCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _batchLoudnessAnalysisCancellation = cancellation;
+        var progress = new InlineProgress<LoudnessBatchAnalysisProgress>(
+            UpdateBatchLoudnessProgress);
+
+        try
+        {
+            var result = await _loudnessBatchAnalysisService.AnalyzeAsync(
+                targets.Select(clip => clip.Model),
+                progress,
+                cancellation.Token);
+
+            foreach (var clip in targets)
+            {
+                RefreshLoudnessPresentation(clip);
+            }
+
+            StatusText = result.FailedCount == 0
+                ? $"批量响度分析完成 · {result.SucceededCount} 段成功"
+                : $"批量响度分析完成 · {result.SucceededCount} 段成功，" +
+                  $"{result.FailedCount} 段失败 · 首项「{AbbreviateTitle(result.Failures[0].Title)}」";
+            BatchLoudnessStatus = StatusText;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            StatusText = "批量响度分析已取消，已完成的结果仍然保留";
+            BatchLoudnessStatus = "批量响度分析已取消";
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"批量响度分析中断：{exception.Message}";
+            BatchLoudnessStatus = "批量响度分析异常中断";
+        }
+        finally
+        {
+            if (ReferenceEquals(_batchLoudnessAnalysisCancellation, cancellation))
+            {
+                _batchLoudnessAnalysisCancellation = null;
+            }
+
+            cancellation.Dispose();
+            IsBatchLoudnessAnalyzing = false;
+            RefreshBatchLoudnessAvailability();
+        }
+    }
+
+    private bool CanAnalyzeLibraryLoudness() =>
+        !IsBatchLoudnessAnalyzing &&
+        !IsAnalyzingLoudness &&
+        PendingLoudnessAnalysisCount > 0;
+
+    [RelayCommand(CanExecute = nameof(CanCancelBatchLoudnessAnalysis))]
+    private void CancelBatchLoudnessAnalysis()
+    {
+        _batchLoudnessAnalysisCancellation?.Cancel();
+        BatchLoudnessStatus = "正在取消，请等待当前文件停止…";
+        CancelBatchLoudnessAnalysisCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanCancelBatchLoudnessAnalysis() =>
+        IsBatchLoudnessAnalyzing &&
+        _batchLoudnessAnalysisCancellation is { IsCancellationRequested: false };
+
+    private void UpdateBatchLoudnessProgress(LoudnessBatchAnalysisProgress progress)
+    {
+        BatchLoudnessProgressPercent = progress.Percent;
+        BatchLoudnessStatus =
+            $"{progress.CompletedCount}/{progress.TotalCount} · {progress.Title}" +
+            (progress.FailedCount > 0 ? $" · 失败 {progress.FailedCount}" : string.Empty);
+
+        var clip = Clips.FirstOrDefault(item => item.Model.Id == progress.ClipId);
+        if (clip is not null)
+        {
+            RefreshLoudnessPresentation(clip);
+        }
+
+        RefreshBatchLoudnessAvailability();
+    }
+
     [RelayCommand(CanExecute = nameof(CanAnalyzeLoudness))]
     private async Task AnalyzeLoudnessAsync()
     {
@@ -582,6 +707,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             PlaybackEditingClip.RefreshPlaybackSettings();
             OnPropertyChanged(nameof(PlaybackLoudnessSummary));
             OnPropertyChanged(nameof(RecommendedGainDraftText));
+            RefreshBatchLoudnessAvailability();
             PlaybackSettingsStatus = $"分析完成：{PlaybackEditingClip.LoudnessSummary}";
             StatusText = $"已完成「{PlaybackEditingClip.Title}」的响度分析";
         }
@@ -602,7 +728,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private bool CanAnalyzeLoudness() =>
-        PlaybackEditingClip is not null && !IsAnalyzingLoudness;
+        PlaybackEditingClip is not null &&
+        !IsAnalyzingLoudness &&
+        !IsBatchLoudnessAnalyzing;
 
     [RelayCommand(CanExecute = nameof(CanSavePlaybackSettings))]
     private async Task SavePlaybackSettingsAsync()
@@ -651,7 +779,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private bool CanSavePlaybackSettings() =>
-        PlaybackEditingClip is not null && !IsAnalyzingLoudness;
+        PlaybackEditingClip is not null &&
+        !IsAnalyzingLoudness &&
+        !IsBatchLoudnessAnalyzing;
+
+    private static bool NeedsLoudnessAnalysis(AudioClipViewModel clip) =>
+        !clip.Model.IntegratedLufs.HasValue ||
+        !clip.Model.SamplePeakDbfs.HasValue ||
+        !clip.Model.RecommendedGainDb.HasValue ||
+        !clip.Model.LoudnessAnalyzedUtc.HasValue;
+
+    private void RefreshLoudnessPresentation(AudioClipViewModel clip)
+    {
+        clip.RefreshLoudnessAnalysis();
+        clip.RefreshPlaybackSettings();
+        if (ReferenceEquals(PlaybackEditingClip, clip))
+        {
+            OnPropertyChanged(nameof(PlaybackLoudnessSummary));
+            OnPropertyChanged(nameof(RecommendedGainDraftText));
+        }
+    }
+
+    private void RefreshBatchLoudnessAvailability()
+    {
+        OnPropertyChanged(nameof(PendingLoudnessAnalysisCount));
+        OnPropertyChanged(nameof(BatchLoudnessAnalysisActionText));
+        AnalyzeLibraryLoudnessCommand.NotifyCanExecuteChanged();
+    }
+
+    private static string AbbreviateTitle(string title) =>
+        title.Length <= 20 ? title : $"{title[..20]}…";
 
     private int NormalizeFadeDuration(int value) =>
         FadeDurationOptions.Contains(value) ? value : 0;
@@ -1009,6 +1166,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         EnsureCategory(clip.Category);
         ShowAll();
         RefreshFilter();
+        RefreshBatchLoudnessAvailability();
         StatusText = $"已下载并导入「{clip.Title}」";
         return clip;
     }
@@ -1208,10 +1366,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _loudnessAnalysisCancellation?.Cancel();
         _loudnessAnalysisCancellation?.Dispose();
         _loudnessAnalysisCancellation = null;
+        _batchLoudnessAnalysisCancellation?.Cancel();
+        _batchLoudnessAnalysisCancellation = null;
         _playbackProgressTimer.Stop();
         _playbackProgressTimer.Tick -= OnPlaybackProgressTick;
         DownloadCenter.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    private sealed class InlineProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        public void Report(T value)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                callback(value);
+                return;
+            }
+
+            dispatcher.Invoke(() => callback(value));
+        }
     }
 }
