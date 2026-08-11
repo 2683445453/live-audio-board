@@ -8,6 +8,8 @@ public sealed class AudioClip
 
     public string FilePath { get; set; } = string.Empty;
 
+    public string? ContentSha256 { get; set; }
+
     public string Category { get; set; } = "未分类";
 
     public bool IsFavorite { get; set; }
@@ -37,4 +39,3 @@ public sealed class AudioClip
         }
     }
 }
-

@@ -7,6 +7,8 @@
 - WPF/.NET 8 分层项目骨架；
 - 夜航玻璃拟态主界面；
 - 本地音频导入与 SQLite 持久化；
+- 音频自动复制到托管媒体库，并按 SHA-256 内容去重；
+- SQLite 每 24 小时自动备份，默认保留最近 10 份；
 - 分类、搜索、收藏筛选；
 - 基于 NAudio/WASAPI 的 48 kHz 双声道多路混音；
 - Windows 输出设备选择、刷新与设置持久化；
@@ -28,15 +30,16 @@ dotnet build LiveAudioBoard.sln
 dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ```
 
-首次运行会在 `%LOCALAPPDATA%\LiveAudioBoard` 创建 `library.db`，播放偏好保存在
-同目录的 `settings.json`。
+首次运行会在 `%LOCALAPPDATA%\LiveAudioBoard` 创建 `library.db`。新导入和下载成功的音频
+会进入 `Media`，数据库备份进入 `Backups`，播放偏好保存在同目录的 `settings.json`。
+旧版本已经记录的外部文件路径保持不变，不会在启动时擅自移动。
 用户音频、数据库、缓存与密钥不会进入 Git 仓库。
 
 下载中心通过 [Openverse 官方 API](https://api.openverse.org/) 聚合开放授权音频，默认只显示 CC0、公共领域
 和 CC BY 内容；使用前仍应在“查看来源”中核对具体授权和署名要求。直链模式
 只处理可直接访问的合法音频文件地址，不解析网页、不绕过登录或 DRM，也不抓取
-流媒体平台内容。下载文件保存在
-`%LOCALAPPDATA%\LiveAudioBoard\Downloads`。
+流媒体平台内容。`Downloads` 只作为下载暂存区；导入成功后文件会转入内容寻址的
+`Media` 目录，完全相同的音频只保存一份。
 
 在线试听使用当前选择的 Windows 输出设备；直播期间如果 OBS 正在捕获本应用音频，
 试听声也可能进入直播，请先确认监听和采集状态。

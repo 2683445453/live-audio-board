@@ -23,6 +23,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioMetadataReader _metadataReader;
     private readonly IAudioFilePicker _filePicker;
     private readonly IAppSettingsStore _settingsStore;
+    private readonly ILibraryMediaStore _mediaStore;
     private AppSettings _settings = new();
     private bool _suppressDeviceSelection;
     private bool _disposed;
@@ -35,6 +36,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAudioMetadataReader metadataReader,
         IAudioFilePicker filePicker,
         IAppSettingsStore settingsStore,
+        ILibraryMediaStore mediaStore,
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider)
     {
@@ -43,6 +45,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _metadataReader = metadataReader;
         _filePicker = filePicker;
         _settingsStore = settingsStore;
+        _mediaStore = mediaStore;
 
         var downloadDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -235,9 +238,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         foreach (var filePath in files)
         {
+            var fullSourcePath = Path.GetFullPath(filePath);
             if (Clips.Any(item => string.Equals(
                     item.FilePath,
-                    filePath,
+                    fullSourcePath,
                     StringComparison.OrdinalIgnoreCase)))
             {
                 skipped++;
@@ -246,11 +250,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             try
             {
-                var metadata = _metadataReader.Read(filePath);
+                var metadata = _metadataReader.Read(fullSourcePath);
+                var managedFile = await _mediaStore.IngestAsync(
+                    fullSourcePath,
+                    moveSource: false);
+                var existing = Clips.FirstOrDefault(item =>
+                    string.Equals(
+                        item.Model.ContentSha256,
+                        managedFile.ContentSha256,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(
+                        item.FilePath,
+                        managedFile.FilePath,
+                        StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(existing.Model.ContentSha256))
+                    {
+                        existing.Model.ContentSha256 = managedFile.ContentSha256;
+                        await _repository.UpsertAsync(existing.Model);
+                    }
+
+                    skipped++;
+                    continue;
+                }
+
                 var clip = new AudioClip
                 {
-                    Title = Path.GetFileNameWithoutExtension(filePath),
-                    FilePath = Path.GetFullPath(filePath),
+                    Title = Path.GetFileNameWithoutExtension(fullSourcePath),
+                    FilePath = managedFile.FilePath,
+                    ContentSha256 = managedFile.ContentSha256,
                     Category = "未分类",
                     DurationMilliseconds = metadata.DurationMilliseconds
                 };
@@ -591,16 +620,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IDownloadProvider provider,
         CancellationToken cancellationToken)
     {
-        var existing = Clips.FirstOrDefault(item => string.Equals(
-            item.FilePath,
+        var metadata = _metadataReader.Read(result.FilePath);
+        var managedFile = await _mediaStore.IngestAsync(
             result.FilePath,
-            StringComparison.OrdinalIgnoreCase));
+            moveSource: false,
+            cancellationToken);
+        var existing = Clips.FirstOrDefault(item =>
+            string.Equals(
+                item.Model.ContentSha256,
+                managedFile.ContentSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                item.FilePath,
+                managedFile.FilePath,
+                StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
+            if (string.IsNullOrWhiteSpace(existing.Model.ContentSha256))
+            {
+                existing.Model.ContentSha256 = managedFile.ContentSha256;
+                await _repository.UpsertAsync(existing.Model, cancellationToken);
+            }
+
+            DeleteDownloadedSource(result.FilePath, managedFile.FilePath);
             return existing.Model;
         }
 
-        var metadata = _metadataReader.Read(result.FilePath);
         var title = string.IsNullOrWhiteSpace(result.Title)
             ? Path.GetFileNameWithoutExtension(result.FilePath)
             : result.Title.Trim();
@@ -612,7 +657,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var clip = new AudioClip
         {
             Title = title,
-            FilePath = Path.GetFullPath(result.FilePath),
+            FilePath = managedFile.FilePath,
+            ContentSha256 = managedFile.ContentSha256,
             Category = "下载",
             DurationMilliseconds = metadata.DurationMilliseconds,
             SourceProvider = result.ProviderId ?? provider.Id,
@@ -621,12 +667,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
 
         await _repository.UpsertAsync(clip, cancellationToken);
+        DeleteDownloadedSource(result.FilePath, managedFile.FilePath);
         Clips.Insert(0, new AudioClipViewModel(clip));
         EnsureCategory(clip.Category);
         ShowAll();
         RefreshFilter();
         StatusText = $"已下载并导入「{clip.Title}」";
         return clip;
+    }
+
+    private static void DeleteDownloadedSource(string sourcePath, string managedPath)
+    {
+        try
+        {
+            if (!string.Equals(
+                    Path.GetFullPath(sourcePath),
+                    Path.GetFullPath(managedPath),
+                    StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(sourcePath))
+            {
+                File.Delete(sourcePath);
+            }
+        }
+        catch (IOException)
+        {
+            // The managed copy and database record are already safe. A locked download
+            // can remain in the temporary directory and be cleaned up later.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // See above: cleanup failure must not turn a successful import into failure.
+        }
     }
 
     private static string? BuildLicenseNote(DownloadResult result)

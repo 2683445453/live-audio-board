@@ -38,6 +38,7 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
 
         await using var context = CreateContext();
         await context.Database.EnsureCreatedAsync(cancellationToken);
+        await EnsureCompatibleSchemaAsync(context, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AudioClip>> GetAllAsync(
@@ -81,5 +82,51 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
     }
 
     private AudioLibraryDbContext CreateContext() => new(_options);
-}
 
+    private static async Task EnsureCompatibleSchemaAsync(
+        AudioLibraryDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var connection = context.Database.GetDbConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            var hasContentHash = false;
+            await using (var query = connection.CreateCommand())
+            {
+                query.CommandText = "PRAGMA table_info(\"AudioClips\");";
+                await using var reader = await query.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    if (string.Equals(
+                            reader.GetString(1),
+                            nameof(AudioClip.ContentSha256),
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasContentHash = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasContentHash)
+            {
+                await using var alter = connection.CreateCommand();
+                alter.CommandText =
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"ContentSha256\" TEXT NULL;";
+                await alter.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await using var createIndex = connection.CreateCommand();
+            createIndex.CommandText =
+                "CREATE UNIQUE INDEX IF NOT EXISTS \"IX_AudioClips_ContentSha256\" " +
+                "ON \"AudioClips\" (\"ContentSha256\");";
+            await createIndex.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+}

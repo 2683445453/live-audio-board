@@ -665,7 +665,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="MVP 0.4 · 全局快捷键" />
+                            Text="MVP 0.5 · 托管资料库" />
             </Grid>
         </Grid>
 

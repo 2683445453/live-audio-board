@@ -7,6 +7,64 @@ namespace LiveAudioBoard.Tests;
 public sealed class SqliteAudioLibraryRepositoryTests
 {
     [Fact]
+    public async Task InitializeAsync_UpgradesDatabaseCreatedBeforeContentHashes()
+    {
+        var testDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LiveAudioBoard.Tests",
+            Guid.NewGuid().ToString("N"));
+        var databasePath = Path.Combine(testDirectory, "library.db");
+        Directory.CreateDirectory(testDirectory);
+
+        try
+        {
+            await using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE "AudioClips" (
+                        "Id" TEXT NOT NULL CONSTRAINT "PK_AudioClips" PRIMARY KEY,
+                        "Title" TEXT NOT NULL,
+                        "FilePath" TEXT NOT NULL,
+                        "Category" TEXT NOT NULL,
+                        "IsFavorite" INTEGER NOT NULL,
+                        "DurationMilliseconds" INTEGER NOT NULL,
+                        "Volume" REAL NOT NULL,
+                        "Hotkey" TEXT NULL,
+                        "SourceProvider" TEXT NULL,
+                        "SourceUrl" TEXT NULL,
+                        "License" TEXT NULL,
+                        "CreatedUtc" TEXT NOT NULL
+                    );
+                    CREATE UNIQUE INDEX "IX_AudioClips_FilePath" ON "AudioClips" ("FilePath");
+                    """;
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var repository = new SqliteAudioLibraryRepository(databasePath);
+            await repository.InitializeAsync();
+            await repository.UpsertAsync(new AudioClip
+            {
+                Title = "Migrated",
+                FilePath = Path.Combine(testDirectory, "migrated.mp3"),
+                ContentSha256 = new string('b', 64)
+            });
+
+            var saved = Assert.Single(await repository.GetAllAsync());
+            Assert.Equal(new string('b', 64), saved.ContentSha256);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(testDirectory))
+            {
+                Directory.Delete(testDirectory, true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task UpsertAsync_PersistsAndClearsPerSoundHotkey()
     {
         var testDirectory = Path.Combine(

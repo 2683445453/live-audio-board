@@ -20,6 +20,18 @@ public partial class App : Application
         {
             var repository = SqliteAudioLibraryRepository.CreateDefault();
             await repository.InitializeAsync();
+            LibraryBackupResult? backupResult = null;
+            var backupFailed = false;
+            try
+            {
+                backupResult = await SqliteLibraryBackupService
+                    .CreateDefault(repository.DatabasePath)
+                    .CreateBackupIfDueAsync(TimeSpan.FromHours(24));
+            }
+            catch
+            {
+                backupFailed = true;
+            }
 
             _playbackService = new NaudioPlaybackService();
             var providerCatalog = new ProviderCatalog(
@@ -31,10 +43,19 @@ public partial class App : Application
                 new NaudioAudioMetadataReader(),
                 new WpfAudioFilePicker(),
                 JsonAppSettingsStore.CreateDefault(),
+                Sha256LibraryMediaStore.CreateDefault(),
                 providerCatalog,
                 audioSearchProvider);
 
             await viewModel.InitializeAsync();
+            if (backupResult?.Created == true)
+            {
+                viewModel.StatusText += " · 已创建自动备份";
+            }
+            else if (backupFailed)
+            {
+                viewModel.StatusText += " · 自动备份失败，资料库仍可使用";
+            }
 
             var mainWindow = new MainWindow
             {

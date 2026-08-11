@@ -427,6 +427,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
                     result,
                     provider,
                     CancellationToken.None);
+                DownloadedFilePath = clip.FilePath;
                 StatusText = $"下载完成，已加入资料库「{clip.Title}」";
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
