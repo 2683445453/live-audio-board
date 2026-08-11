@@ -12,6 +12,7 @@ Media/
 Downloads/
 Backups/
 Releases/
+artifacts/
 *.db
 *.db-shm
 *.db-wal
@@ -27,4 +28,3 @@ appsettings.Local.json
 Thumbs.db
 Desktop.ini
 .DS_Store
-

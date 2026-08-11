@@ -2,8 +2,6 @@
 
 面向 Windows 直播场景的本地音频资料库与快捷播放面板。
 
-![LiveAudioBoard MVP 界面](docs/images/mvp-ui-preview.png)
-
 当前里程碑已经包含：
 
 - WPF/.NET 8 分层项目骨架；
