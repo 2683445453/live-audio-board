@@ -28,6 +28,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
     private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
+    private readonly AudioImportPathResolver _audioImportPathResolver = new();
     private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
     private readonly MediaRecoveryService _mediaRecoveryService;
     private readonly DispatcherTimer _playbackProgressTimer;
@@ -208,6 +209,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string statusText = "正在准备本地资料库…";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportAudioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ImportFolderCommand))]
+    private bool isImporting;
 
     [ObservableProperty]
     private string nowPlayingTitle = "尚未播放";
@@ -494,7 +500,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanImportAudio))]
     private async Task ImportAudioAsync()
     {
         var files = _filePicker.PickAudioFiles();
@@ -503,74 +509,133 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        var imported = 0;
-        var skipped = 0;
+        await ImportPathsAsync(files);
+    }
 
-        foreach (var filePath in files)
+    [RelayCommand(CanExecute = nameof(CanImportAudio))]
+    private async Task ImportFolderAsync()
+    {
+        var folder = _filePicker.PickAudioFolder();
+        if (string.IsNullOrWhiteSpace(folder))
         {
-            var fullSourcePath = Path.GetFullPath(filePath);
-            if (Clips.Any(item => string.Equals(
-                    item.FilePath,
-                    fullSourcePath,
-                    StringComparison.OrdinalIgnoreCase)))
+            return;
+        }
+
+        await ImportPathsAsync([folder]);
+    }
+
+    public Task ImportDroppedPathsAsync(IReadOnlyList<string> paths) =>
+        ImportPathsAsync(paths);
+
+    private bool CanImportAudio() => !IsImporting;
+
+    private async Task ImportPathsAsync(IReadOnlyList<string> paths)
+    {
+        if (IsImporting || paths.Count == 0)
+        {
+            return;
+        }
+
+        IsImporting = true;
+        StatusText = "正在扫描导入路径…";
+        try
+        {
+            var inputPaths = paths.ToArray();
+            var resolved = await Task.Run(() =>
+                _audioImportPathResolver.Resolve(inputPaths));
+            if (resolved.Candidates.Count == 0)
             {
-                skipped++;
-                continue;
+                StatusText = resolved.SkippedCount == 0
+                    ? "所选路径中没有音频文件"
+                    : $"未发现支持的音频 · 已跳过 {resolved.SkippedCount} 项";
+                return;
             }
 
-            try
-            {
-                var metadata = _metadataReader.Read(fullSourcePath);
-                var managedFile = await _mediaStore.IngestAsync(
-                    fullSourcePath,
-                    moveSource: false);
-                var existing = Clips.FirstOrDefault(item =>
-                    string.Equals(
-                        item.Model.ContentSha256,
-                        managedFile.ContentSha256,
-                        StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(
-                        item.FilePath,
-                        managedFile.FilePath,
-                        StringComparison.OrdinalIgnoreCase));
-                if (existing is not null)
-                {
-                    if (string.IsNullOrWhiteSpace(existing.Model.ContentSha256))
-                    {
-                        existing.Model.ContentSha256 = managedFile.ContentSha256;
-                        await _repository.UpsertAsync(existing.Model);
-                    }
+            var imported = 0;
+            var skipped = resolved.SkippedCount;
+            var processed = 0;
 
+            foreach (var candidate in resolved.Candidates)
+            {
+                processed++;
+                StatusText = $"正在导入 {processed}/{resolved.Candidates.Count} · " +
+                             Path.GetFileName(candidate.FilePath);
+                var fullSourcePath = candidate.FilePath;
+                if (Clips.Any(item => string.Equals(
+                        item.FilePath,
+                        fullSourcePath,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
                     skipped++;
                     continue;
                 }
 
-                var clip = new AudioClip
+                try
                 {
-                    Title = Path.GetFileNameWithoutExtension(fullSourcePath),
-                    FilePath = managedFile.FilePath,
-                    ContentSha256 = managedFile.ContentSha256,
-                    Category = "未分类",
-                    DurationMilliseconds = metadata.DurationMilliseconds
-                };
+                    var metadata = _metadataReader.Read(fullSourcePath);
+                    var managedFile = await _mediaStore.IngestAsync(
+                        fullSourcePath,
+                        moveSource: false);
+                    var existing = Clips.FirstOrDefault(item =>
+                        string.Equals(
+                            item.Model.ContentSha256,
+                            managedFile.ContentSha256,
+                            StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(
+                            item.FilePath,
+                            managedFile.FilePath,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (existing is not null)
+                    {
+                        if (string.IsNullOrWhiteSpace(existing.Model.ContentSha256))
+                        {
+                            existing.Model.ContentSha256 = managedFile.ContentSha256;
+                            await _repository.UpsertAsync(existing.Model);
+                        }
 
-                await _repository.UpsertAsync(clip);
-                Clips.Insert(0, new AudioClipViewModel(clip));
-                imported++;
+                        skipped++;
+                        continue;
+                    }
+
+                    var category = string.IsNullOrWhiteSpace(candidate.SuggestedCategory)
+                        ? "未分类"
+                        : candidate.SuggestedCategory;
+                    var clip = new AudioClip
+                    {
+                        Title = Path.GetFileNameWithoutExtension(fullSourcePath),
+                        FilePath = managedFile.FilePath,
+                        ContentSha256 = managedFile.ContentSha256,
+                        Category = category,
+                        DurationMilliseconds = metadata.DurationMilliseconds
+                    };
+
+                    await _repository.UpsertAsync(clip);
+                    Clips.Insert(0, new AudioClipViewModel(clip));
+                    EnsureCategory(category);
+                    imported++;
+                }
+                catch
+                {
+                    skipped++;
+                }
             }
-            catch
-            {
-                skipped++;
-            }
+
+            EnsureCategory("未分类");
+            ShowAll();
+            RefreshFilter();
+            RefreshBatchLoudnessAvailability();
+            StatusText = skipped == 0
+                ? $"已导入 {imported} 段音频"
+                : $"已导入 {imported} 段，跳过 {skipped} 项不支持、无法读取或重复的内容";
         }
-
-        EnsureCategory("未分类");
-        ShowAll();
-        RefreshFilter();
-        RefreshBatchLoudnessAvailability();
-        StatusText = skipped == 0
-            ? $"已导入 {imported} 段音频"
-            : $"已导入 {imported} 段，跳过 {skipped} 段无法读取或重复的音频";
+        catch (Exception exception)
+        {
+            StatusText = $"导入中断：{exception.Message}";
+        }
+        finally
+        {
+            IsImporting = false;
+        }
     }
 
     [RelayCommand]

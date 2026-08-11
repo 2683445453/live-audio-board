@@ -50,6 +50,27 @@ public partial class MainWindow : Window
         Close();
     }
 
+    private void Window_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void Window_Drop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not MainViewModel viewModel ||
+            e.Data.GetData(DataFormats.FileDrop) is not string[] paths ||
+            paths.Length == 0)
+        {
+            return;
+        }
+
+        await viewModel.ImportDroppedPathsAsync(paths);
+    }
+
     private void ToggleMaximize()
     {
         WindowState = WindowState == WindowState.Maximized

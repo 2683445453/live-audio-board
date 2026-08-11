@@ -22,6 +22,17 @@ public sealed class WpfAudioFilePicker : IAudioFilePicker
             : Array.Empty<string>();
     }
 
+    public string? PickAudioFolder()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "递归导入音频文件夹",
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog() == true ? dialog.FolderName : null;
+    }
+
     public string? PickReplacementAudioFile(string clipTitle)
     {
         var dialog = new OpenFileDialog

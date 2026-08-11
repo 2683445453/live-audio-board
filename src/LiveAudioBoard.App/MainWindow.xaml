@@ -16,6 +16,9 @@
         Background="{StaticResource WindowBackgroundBrush}"
         Foreground="{StaticResource TextPrimaryBrush}"
         FontFamily="Microsoft YaHei UI"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop"
         TextOptions.TextFormattingMode="Display">
 
     <shell:WindowChrome.WindowChrome>
@@ -373,6 +376,11 @@
                                     Style="{StaticResource QuietButtonStyle}"
                                     Command="{Binding OpenDownloadCenterCommand}"
                                     Content="下载音频" />
+                            <Button Margin="0,0,8,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding ImportFolderCommand}"
+                                    Content="导入文件夹"
+                                    ToolTip="递归扫描文件夹，子目录自动作为分类" />
                             <Button Style="{StaticResource AccentButtonStyle}"
                                     Command="{Binding ImportAudioCommand}"
                                     Content="＋  导入音频" />
@@ -570,7 +578,7 @@
                                            FontSize="12"
                                            LineHeight="20"
                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                           Text="导入音频后即可分类、收藏，并通过 WASAPI 在直播中稳定播放。" />
+                                           Text="选择音频或文件夹，也可以直接拖到窗口；子目录会自动成为分类。" />
                                 <Button Width="136"
                                         HorizontalAlignment="Center"
                                         Style="{StaticResource AccentButtonStyle}"
@@ -838,7 +846,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.14 · 崩溃诊断与日志轮换" />
+                            Text="MVP 0.15 · 文件夹与拖放导入" />
             </Grid>
         </Grid>
 
