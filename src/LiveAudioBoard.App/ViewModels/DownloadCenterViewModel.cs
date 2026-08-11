@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Downloads;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App.ViewModels;
@@ -13,24 +16,32 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 {
     private readonly ProviderCatalog _providerCatalog;
     private readonly IAudioSearchProvider _audioSearchProvider;
+    private readonly IAudioPlaybackService _playbackService;
     private readonly string _destinationDirectory;
     private readonly Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
         _importDownloadedAudio;
     private CancellationTokenSource? _downloadCancellation;
+    private Guid? _previewPlaybackId;
+    private string _previewItemId = string.Empty;
+    private string _activeSearchQuery = string.Empty;
+    private string _activeSourceId = string.Empty;
     private bool _disposed;
 
     public DownloadCenterViewModel(
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
+        IAudioPlaybackService playbackService,
         string destinationDirectory,
         Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
             importDownloadedAudio)
     {
         _providerCatalog = providerCatalog;
         _audioSearchProvider = audioSearchProvider;
+        _playbackService = playbackService;
         _destinationDirectory = Path.GetFullPath(destinationDirectory);
         _importDownloadedAudio = importDownloadedAudio;
         selectedSource = audioSearchProvider.Sources[0];
+        _playbackService.StateChanged += OnPlaybackStateChanged;
     }
 
     public ObservableCollection<RemoteAudioItem> SearchResults { get; } = [];
@@ -42,6 +53,14 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     public bool IsSearchMode => !UseDirectLink;
 
     public bool IsBusy => IsSearching || IsDownloading;
+
+    public bool IsPreviewing => _previewPlaybackId.HasValue;
+
+    public string PaginationSummary => TotalPages == 0
+        ? "暂无分页"
+        : !IsSearchCriteriaCurrent()
+            ? "搜索条件已更改"
+        : $"第 {CurrentPage} / {TotalPages} 页";
 
     public string PrimaryActionText => IsDownloading
         ? "下载中…"
@@ -62,15 +81,41 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
+    [NotifyPropertyChangedFor(nameof(PaginationSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     private string searchQuery = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PaginationSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     private AudioSourceSite selectedSource;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PaginationSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
+    private int currentPage;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PaginationSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
+    private int totalPages;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewing))]
+    [NotifyCanExecuteChangedFor(nameof(StopPreviewCommand))]
+    private string previewingTitle = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsBusy))]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
     private bool isSearching;
 
@@ -87,6 +132,9 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
     [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
     private bool isDownloading;
@@ -112,8 +160,27 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         IsOpen = true;
     }
 
+    partial void OnSearchQueryChanged(string value) => MarkSearchCriteriaChanged();
+
+    partial void OnSelectedSourceChanged(AudioSourceSite value) => MarkSearchCriteriaChanged();
+
+    private void MarkSearchCriteriaChanged()
+    {
+        if (CurrentPage == 0 || IsSearchCriteriaCurrent())
+        {
+            return;
+        }
+
+        SearchSummary = "搜索条件已更改，点击“搜索”刷新结果。";
+        StatusText = SearchSummary;
+    }
+
     [RelayCommand(CanExecute = nameof(CanClose))]
-    private void Close() => IsOpen = false;
+    private void Close()
+    {
+        StopPreviewCore();
+        IsOpen = false;
+    }
 
     private bool CanClose() => !IsBusy;
 
@@ -132,11 +199,36 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand(CanExecute = nameof(CanSearch))]
-    private async Task SearchAsync()
+    private Task SearchAsync() => SearchPageAsync(1);
+
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousPage))]
+    private Task PreviousPageAsync() => SearchPageAsync(CurrentPage - 1);
+
+    private bool CanGoToPreviousPage() =>
+        CanNavigateSearch() && CurrentPage > 1;
+
+    [RelayCommand(CanExecute = nameof(CanGoToNextPage))]
+    private Task NextPageAsync() => SearchPageAsync(CurrentPage + 1);
+
+    private bool CanGoToNextPage() =>
+        CanNavigateSearch() && CurrentPage < TotalPages;
+
+    private bool CanNavigateSearch() =>
+        !IsBusy &&
+        CurrentPage > 0 &&
+        IsSearchCriteriaCurrent();
+
+    private bool IsSearchCriteriaCurrent() =>
+        string.Equals(SearchQuery.Trim(), _activeSearchQuery, StringComparison.Ordinal) &&
+        string.Equals(SelectedSource.Id, _activeSourceId, StringComparison.Ordinal);
+
+    private async Task SearchPageAsync(int pageNumber)
     {
+        StopPreviewCore();
         IsSearching = true;
-        SearchResults.Clear();
-        SearchSummary = $"正在搜索 {SelectedSource.DisplayName}…";
+        SearchSummary = pageNumber == 1
+            ? $"正在搜索 {SelectedSource.DisplayName}…"
+            : $"正在加载第 {pageNumber} 页…";
         StatusText = $"正在通过 {_audioSearchProvider.DisplayName} 搜索…";
 
         try
@@ -144,16 +236,26 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
             var page = await _audioSearchProvider.SearchAsync(
                 SearchQuery,
                 SelectedSource,
+                page: pageNumber,
                 pageSize: 20);
 
+            SearchResults.Clear();
             foreach (var item in page.Items)
             {
                 SearchResults.Add(item);
             }
 
+            _activeSearchQuery = SearchQuery.Trim();
+            _activeSourceId = SelectedSource.Id;
+            CurrentPage = page.Items.Count == 0 ? 0 : page.Page;
+            TotalPages = page.Items.Count == 0 ? 0 : Math.Max(page.PageCount, 1);
+            OnPropertyChanged(nameof(PaginationSummary));
+            PreviousPageCommand.NotifyCanExecuteChanged();
+            NextPageCommand.NotifyCanExecuteChanged();
+
             SearchSummary = page.Items.Count == 0
                 ? "没有找到匹配结果，可以尝试英文关键词或切换来源。"
-                : $"找到 {page.TotalResults} 条开放音频，显示前 {page.Items.Count} 条";
+                : $"找到 {page.TotalResults} 条开放音频，当前显示第 {CurrentPage} 页的 {page.Items.Count} 条";
             StatusText = SearchSummary;
         }
         catch (Exception exception)
@@ -169,6 +271,74 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     private bool CanSearch() =>
         !IsBusy && !string.IsNullOrWhiteSpace(SearchQuery);
+
+    [RelayCommand(CanExecute = nameof(CanTogglePreview))]
+    private void TogglePreview(RemoteAudioItem? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (_previewPlaybackId.HasValue &&
+            string.Equals(_previewItemId, item.Id, StringComparison.Ordinal))
+        {
+            StopPreview();
+            return;
+        }
+
+        StopPreviewCore();
+
+        try
+        {
+            _previewPlaybackId = _playbackService.PlayRemote(item.AudioUri, 0.85d);
+            _previewItemId = item.Id;
+            PreviewingTitle = item.Title;
+            OnPropertyChanged(nameof(IsPreviewing));
+            StopPreviewCommand.NotifyCanExecuteChanged();
+            StatusText = $"正在试听「{item.Title}」· 再次点击可停止";
+        }
+        catch (Exception exception)
+        {
+            ClearPreviewState();
+            StatusText = $"无法试听：{exception.Message}";
+        }
+    }
+
+    private bool CanTogglePreview(RemoteAudioItem? item) =>
+        !IsBusy && item is not null;
+
+    [RelayCommand(CanExecute = nameof(CanStopPreview))]
+    private void StopPreview()
+    {
+        var title = PreviewingTitle;
+        StopPreviewCore();
+        StatusText = string.IsNullOrWhiteSpace(title)
+            ? "试听已停止"
+            : $"已停止试听「{title}」";
+    }
+
+    private bool CanStopPreview() => _previewPlaybackId.HasValue;
+
+    private void StopPreviewCore()
+    {
+        var playbackId = _previewPlaybackId;
+        ClearPreviewState();
+
+        if (playbackId.HasValue)
+        {
+            _playbackService.Stop(playbackId.Value);
+        }
+    }
+
+    private void ClearPreviewState()
+    {
+        _previewPlaybackId = null;
+        _previewItemId = string.Empty;
+        PreviewingTitle = string.Empty;
+        OnPropertyChanged(nameof(IsPreviewing));
+        StopPreviewCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanDownloadRemote))]
     private Task DownloadRemoteAsync(RemoteAudioItem? item) =>
@@ -196,6 +366,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     private async Task DownloadCoreAsync(Uri source, RemoteAudioItem? remoteItem)
     {
+        StopPreviewCore();
         var provider = _providerCatalog.FindProvider(source);
         if (provider is null)
         {
@@ -316,6 +487,32 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     private bool CanOpenDownloadFolder() =>
         !string.IsNullOrWhiteSpace(DownloadedFilePath) && File.Exists(DownloadedFilePath);
 
+    private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs args)
+    {
+        if (!_previewPlaybackId.HasValue || args.PlaybackId != _previewPlaybackId.Value)
+        {
+            return;
+        }
+
+        void UpdatePreviewState()
+        {
+            var title = PreviewingTitle;
+            ClearPreviewState();
+            StatusText = args.State == PlaybackState.Error
+                ? $"试听失败：{args.Error?.Message ?? "未知错误"}"
+                : $"试听完成「{title}」";
+        }
+
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(UpdatePreviewState);
+        }
+        else
+        {
+            UpdatePreviewState();
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -326,6 +523,8 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         _downloadCancellation?.Cancel();
         _downloadCancellation?.Dispose();
         _downloadCancellation = null;
+        StopPreviewCore();
+        _playbackService.StateChanged -= OnPlaybackStateChanged;
         _disposed = true;
         GC.SuppressFinalize(this);
     }

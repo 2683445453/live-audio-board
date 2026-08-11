@@ -17,5 +17,9 @@ public interface IAudioPlaybackService : IDisposable
 
     Guid Play(string filePath, double volume = 1d);
 
+    Guid PlayRemote(Uri source, double volume = 1d);
+
+    bool Stop(Guid playbackId);
+
     void StopAll();
 }

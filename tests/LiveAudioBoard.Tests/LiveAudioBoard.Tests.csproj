@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LiveAudioBoard.Core\LiveAudioBoard.Core.csproj" />
+    <ProjectReference Include="..\..\src\LiveAudioBoard.App\LiveAudioBoard.App.csproj" />
     <ProjectReference Include="..\..\src\LiveAudioBoard.Audio\LiveAudioBoard.Audio.csproj" />
     <ProjectReference Include="..\..\src\LiveAudioBoard.Infrastructure\LiveAudioBoard.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\LiveAudioBoard.Providers\LiveAudioBoard.Providers.csproj" />

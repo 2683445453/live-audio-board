@@ -781,6 +781,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <Grid>
@@ -838,9 +839,11 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="92" />
-                                                    <ColumnDefinition Width="8" />
-                                                    <ColumnDefinition Width="76" />
+                                                    <ColumnDefinition Width="82" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="68" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="70" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock FontSize="13"
@@ -863,6 +866,13 @@
                                                         CommandParameter="{Binding}"
                                                         Content="查看来源" />
                                                 <Button Grid.Column="3"
+                                                        Style="{StaticResource QuietButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.TogglePreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="试听"
+                                                        ToolTip="使用当前输出设备在线播放；直播中可能会被 OBS 捕获" />
+                                                <Button Grid.Column="5"
                                                         Style="{StaticResource AccentButtonStyle}"
                                                         Padding="8,6"
                                                         Command="{Binding DataContext.DownloadCenter.DownloadRemoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -874,6 +884,46 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
+
+                        <Grid Grid.Row="3" Margin="0,9,0,0">
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.PreviousPageCommand}"
+                                        Content="上一页" />
+                                <TextBlock MinWidth="112"
+                                           Margin="10,0"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="{Binding DownloadCenter.PaginationSummary}" />
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.NextPageCommand}"
+                                        Content="下一页" />
+                            </StackPanel>
+                            <Button Width="92"
+                                    HorizontalAlignment="Right"
+                                    Padding="8,5"
+                                    Command="{Binding DownloadCenter.StopPreviewCommand}"
+                                    Content="停止试听">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsPreviewing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
                     </Grid>
 
                     <!-- Direct URL fallback -->

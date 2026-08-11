@@ -89,6 +89,9 @@ LiveAudioBoard/
 
 ## 当前迭代
 
+Soundpad 类工作流的借鉴范围与实现次序见
+[SOUNDPAD_REFERENCE.md](SOUNDPAD_REFERENCE.md)，下一阶段优先实现单条音频全局快捷键与冲突检查。
+
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
 - [x] 首版玻璃拟态主界面。
@@ -97,6 +100,7 @@ LiveAudioBoard/
 - [x] 全局 `Ctrl+Shift+F10` 紧急停止、冲突反馈与防重复触发。
 - [ ] 资料库复制、去重与自动备份。
 - [x] Openverse 站内搜索：Freesound、Jamendo、Wikimedia Commons。
+- [x] 开放音频搜索结果分页、在线试听与单独停止试听。
 - [x] HTTP/HTTPS 下载、来源/许可证记录和完成后自动导入。
 - [ ] RSS 与 Freesound OAuth2 原始高质量文件下载。
 - [x] GitHub 远程仓库与首个可运行版本推送。

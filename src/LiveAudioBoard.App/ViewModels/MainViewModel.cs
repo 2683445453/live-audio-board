@@ -49,6 +49,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DownloadCenter = new DownloadCenterViewModel(
             providerCatalog,
             audioSearchProvider,
+            playbackService,
             downloadDirectory,
             ImportDownloadedAudioAsync);
 

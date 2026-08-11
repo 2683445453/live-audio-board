@@ -129,11 +129,48 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
             throw new FileNotFoundException("音频文件不存在。", filePath);
         }
 
-        AudioFileReader? reader = null;
+        return PlayCore(
+            filePath,
+            () =>
+            {
+                var reader = new AudioFileReader(filePath);
+                return (reader, (ISampleProvider)reader);
+            },
+            volume);
+    }
+
+    public Guid PlayRemote(Uri source, double volume = 1d)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (!source.IsAbsoluteUri ||
+            (source.Scheme != Uri.UriSchemeHttp && source.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("试听地址必须是 HTTP 或 HTTPS 绝对地址。", nameof(source));
+        }
+
+        return PlayCore(
+            source.AbsoluteUri,
+            () =>
+            {
+                var reader = new MediaFoundationReader(source.AbsoluteUri);
+                return (reader, reader.ToSampleProvider());
+            },
+            volume);
+    }
+
+    private Guid PlayCore(
+        string sourceId,
+        Func<(WaveStream Reader, ISampleProvider SampleProvider)> sourceFactory,
+        double volume)
+    {
+        WaveStream? reader = null;
         try
         {
-            reader = new AudioFileReader(filePath);
-            ISampleProvider source = reader;
+            var createdSource = sourceFactory();
+            reader = createdSource.Reader;
+            ISampleProvider source = createdSource.SampleProvider;
 
             if (source.WaveFormat.Channels != MixerChannels)
             {
@@ -149,7 +186,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
             {
                 Volume = (float)Math.Clamp(volume, 0d, 1d)
             };
-            var voice = new PlaybackVoice(Guid.NewGuid(), filePath, reader, mixerInput);
+            var voice = new PlaybackVoice(Guid.NewGuid(), sourceId, reader, mixerInput);
 
             int activeCount;
             lock (_gate)
@@ -184,11 +221,42 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
                 new PlaybackStateChangedEventArgs(
                     CorePlaybackState.Error,
                     Guid.Empty,
-                    filePath,
+                    sourceId,
                     ActivePlaybackCount,
                     exception));
             throw;
         }
+    }
+
+    public bool Stop(Guid playbackId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        PlaybackVoice? stoppedVoice;
+        int activeCount;
+        lock (_gate)
+        {
+            var input = _voices
+                .FirstOrDefault(pair => pair.Value.Id == playbackId)
+                .Key;
+            if (input is null || !_voices.Remove(input, out stoppedVoice))
+            {
+                return false;
+            }
+
+            _mixer.RemoveMixerInput(input);
+            activeCount = _voices.Count;
+        }
+
+        stoppedVoice.Dispose();
+        StateChanged?.Invoke(
+            this,
+            new PlaybackStateChangedEventArgs(
+                CorePlaybackState.Stopped,
+                stoppedVoice.Id,
+                stoppedVoice.FilePath,
+                activeCount));
+        return true;
     }
 
     public void StopAll()
@@ -353,7 +421,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
     private sealed record PlaybackVoice(
         Guid Id,
         string FilePath,
-        AudioFileReader Reader,
+        WaveStream Reader,
         ISampleProvider MixerInput) : IDisposable
     {
         public void Dispose() => Reader.Dispose();

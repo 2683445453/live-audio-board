@@ -45,6 +45,7 @@ public sealed class OpenverseAudioSearchProviderTests
         var item = Assert.Single(result.Items);
         Assert.Equal(42, result.TotalResults);
         Assert.Equal(2, result.Page);
+        Assert.Equal(9, result.PageCount);
         Assert.Equal("Rain & Thunder.wav", item.Title);
         Assert.Equal("Field Recorder", item.CreatorDisplay);
         Assert.Equal("Freesound", item.SourceDisplayName);

@@ -12,6 +12,7 @@
 - Windows 输出设备选择、刷新与设置持久化；
 - 全局紧急停止热键 `Ctrl+Shift+F10`；
 - 站内搜索 Freesound、Jamendo、Wikimedia Commons 的开放音频；
+- 搜索结果分页与下载前在线试听；
 - HTTP/HTTPS 音频下载、进度、取消、重试、许可证记录与自动导入；
 - xUnit 核心模型、声道转换和设置存储测试。
 
@@ -36,7 +37,11 @@ dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 流媒体平台内容。下载文件保存在
 `%LOCALAPPDATA%\LiveAudioBoard\Downloads`。
 
+在线试听使用当前选择的 Windows 输出设备；直播期间如果 OBS 正在捕获本应用音频，
+试听声也可能进入直播，请先确认监听和采集状态。
+
 ## 文档
 
 - [开发路线与功能建议](docs/DEVELOPMENT_ROADMAP.md)
 - [玻璃拟态界面规范原文](docs/UI_STYLE_REFERENCE.md)
+- [Soundpad 功能参考与项目取舍](docs/SOUNDPAD_REFERENCE.md)
