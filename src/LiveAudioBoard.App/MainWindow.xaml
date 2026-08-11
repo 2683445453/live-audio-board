@@ -913,7 +913,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.17 · 麦克风与系统回环录音" />
+                            Text="MVP 0.18 · 非破坏性编辑与多格式导出" />
             </Grid>
         </Grid>
 
@@ -1732,6 +1732,50 @@
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Text="ms" />
                                 </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#12D9B878"
+                                BorderBrush="#32D9B878"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="138" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="另存为新音效" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="烘焙当前区间、淡入淡出、音量与增益；原文件保持不变。"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="{Binding SelectedExportFormat.Description}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2"
+                                          Height="42"
+                                          VerticalAlignment="Center"
+                                          Style="{StaticResource GlassComboBoxStyle}"
+                                          DisplayMemberPath="Name"
+                                          ItemsSource="{Binding ExportFormatOptions}"
+                                          SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}" />
+                                <Button Grid.Column="4"
+                                        Height="42"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding RenderAsNewAudioCommand}"
+                                        Content="{Binding RenderAudioActionText}" />
                             </Grid>
                         </Border>
 

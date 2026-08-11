@@ -113,6 +113,7 @@ public partial class AudioClipViewModel : ObservableObject
                 "direct-http" => "音频直链",
                 "recording-microphone" => "麦克风录音",
                 "recording-loopback" => "系统回环录音",
+                "rendered-export" => "音频编辑导出",
                 _ => Model.SourceProvider
             };
 

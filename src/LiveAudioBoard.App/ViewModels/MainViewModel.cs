@@ -15,6 +15,7 @@ using LiveAudioBoard.Core.Recovery;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Core.Recording;
+using LiveAudioBoard.Core.Rendering;
 using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App.ViewModels;
@@ -27,6 +28,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioLibraryRepository _repository;
     private readonly IAudioPlaybackService _playbackService;
     private readonly IAudioRecordingService _recordingService;
+    private readonly IAudioClipRenderer _audioClipRenderer;
     private readonly IAudioMetadataReader _metadataReader;
     private readonly IAudioFilePicker _filePicker;
     private readonly IAppSettingsStore _settingsStore;
@@ -50,6 +52,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAudioLibraryRepository repository,
         IAudioPlaybackService playbackService,
         IAudioRecordingService recordingService,
+        IAudioClipRenderer audioClipRenderer,
         IAudioMetadataReader metadataReader,
         IAudioFilePicker filePicker,
         IAppSettingsStore settingsStore,
@@ -61,6 +64,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _repository = repository;
         _playbackService = playbackService;
         _recordingService = recordingService;
+        _audioClipRenderer = audioClipRenderer;
         _metadataReader = metadataReader;
         _filePicker = filePicker;
         _settingsStore = settingsStore;
@@ -159,6 +163,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RecordingSourceChoice.SystemLoopback
     ];
 
+    public IReadOnlyList<AudioExportFormatChoice> ExportFormatOptions { get; } =
+    [
+        AudioExportFormatChoice.Wav,
+        AudioExportFormatChoice.Mp3,
+        AudioExportFormatChoice.M4a
+    ];
+
     public IReadOnlyList<int> RecordingDurationOptions { get; } = [15, 30, 60, 120, 300];
 
     public string PlaybackLoopDraftText => PlaybackLoopDraft
@@ -199,6 +210,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string LoudnessAnalysisActionText => IsAnalyzingLoudness
         ? "正在分析…"
         : "分析 / 重新分析";
+
+    public string RenderAudioActionText => IsRenderingAudio
+        ? "正在生成…"
+        : "另存新音效";
 
     public int PendingLoudnessAnalysisCount => Clips.Count(NeedsLoudnessAnalysis);
 
@@ -362,6 +377,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(PlaybackEditingTitle))]
     [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RenderAsNewAudioCommand))]
     private AudioClipViewModel? playbackEditingClip;
 
     [ObservableProperty]
@@ -404,8 +420,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private double playbackTrimMaximum = 1d;
 
     [ObservableProperty]
+    private AudioExportFormatChoice selectedExportFormat = AudioExportFormatChoice.Wav;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RenderAsNewAudioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyPropertyChangedFor(nameof(RenderAudioActionText))]
+    private bool isRenderingAudio;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
     [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RenderAsNewAudioCommand))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeLibraryLoudnessCommand))]
     [NotifyPropertyChangedFor(nameof(LoudnessAnalysisActionText))]
     private bool isAnalyzingLoudness;
@@ -418,6 +444,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(CancelBatchLoudnessAnalysisCommand))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
     [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RenderAsNewAudioCommand))]
     private bool isBatchLoudnessAnalyzing;
 
     [ObservableProperty]
@@ -1181,8 +1208,130 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"已保存「{PlaybackEditingClip.Title}」的播放设置";
     }
 
+    [RelayCommand(CanExecute = nameof(CanRenderAsNewAudio))]
+    private async Task RenderAsNewAudioAsync()
+    {
+        var sourceClip = PlaybackEditingClip;
+        if (sourceClip is null)
+        {
+            return;
+        }
+
+        if (PlaybackEndDraft - PlaybackStartDraft < 1d)
+        {
+            PlaybackSettingsStatus = "结束点必须晚于开始点。";
+            return;
+        }
+
+        if (PlaybackUseRecommendedGainDraft &&
+            !sourceClip.Model.RecommendedGainDb.HasValue)
+        {
+            PlaybackSettingsStatus = "建议增益尚不可用，请先分析响度。";
+            return;
+        }
+
+        var format = SelectedExportFormat;
+        var renderDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LiveAudioBoard",
+            "Renders");
+        var renderPath = Path.Combine(
+            renderDirectory,
+            $"render-{Guid.NewGuid():N}{format.Extension}");
+
+        IsRenderingAudio = true;
+        PlaybackSettingsStatus = $"正在生成 {format.Name} 副本，原文件不会被修改…";
+        try
+        {
+            var renderResult = await _audioClipRenderer.RenderAsync(
+                new AudioClipRenderOptions(
+                    sourceClip.FilePath,
+                    renderPath,
+                    format.Format,
+                    sourceClip.Model.Volume,
+                    NormalizeFadeDuration(PlaybackFadeInDraft),
+                    NormalizeFadeDuration(PlaybackFadeOutDraft),
+                    (long)Math.Round(PlaybackStartDraft),
+                    (long)Math.Round(PlaybackEndDraft),
+                    PlaybackUseRecommendedGainDraft
+                        ? sourceClip.Model.RecommendedGainDb ?? 0d
+                        : 0d,
+                    PlaybackPeakProtectionDraft,
+                    BitrateKbps: format.BitrateKbps));
+            var managedFile = await _mediaStore.IngestAsync(
+                renderResult.FilePath,
+                moveSource: true);
+            var existing = Clips.FirstOrDefault(item =>
+                string.Equals(
+                    item.Model.ContentSha256,
+                    managedFile.ContentSha256,
+                    StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                PlaybackSettingsStatus =
+                    $"生成内容与「{existing.Title}」相同，媒体库已自动去重。";
+                StatusText = "新音效内容已存在，未创建重复条目";
+                return;
+            }
+
+            var suffix = " - 剪辑";
+            var sourceTitle = sourceClip.Title.Trim();
+            var maximumSourceLength = Math.Max(1, 260 - suffix.Length);
+            if (sourceTitle.Length > maximumSourceLength)
+            {
+                sourceTitle = sourceTitle[..maximumSourceLength];
+            }
+
+            var metadata = _metadataReader.Read(managedFile.FilePath);
+            var clip = new AudioClip
+            {
+                Title = sourceTitle + suffix,
+                FilePath = managedFile.FilePath,
+                ContentSha256 = managedFile.ContentSha256,
+                Category = sourceClip.Category,
+                DisplayOrder = GetNextDisplayOrder(),
+                DurationMilliseconds = metadata.DurationMilliseconds > 0
+                    ? metadata.DurationMilliseconds
+                    : renderResult.DurationMilliseconds,
+                SourceProvider = "rendered-export",
+                License = $"由「{sourceClip.Title}」的播放设置生成"
+            };
+
+            await _repository.UpsertAsync(clip);
+            Clips.Add(new AudioClipViewModel(clip));
+            EnsureCategory(clip.Category);
+            ShowAll();
+            RefreshFilter();
+            RefreshBatchLoudnessAvailability();
+            PlaybackSettingsStatus =
+                $"已生成「{clip.Title}」({format.Name})；原文件保持不变。";
+            StatusText = $"已生成并入库「{clip.Title}」";
+        }
+        catch (Exception exception)
+        {
+            TryDeleteRender(renderPath);
+            var codecHint = format.Format == AudioExportFormat.Wav
+                ? string.Empty
+                : " 可改用 WAV，或检查 Windows 媒体编码组件。";
+            PlaybackSettingsStatus = $"生成失败：{exception.Message}{codecHint}";
+            StatusText = "另存新音效失败";
+        }
+        finally
+        {
+            IsRenderingAudio = false;
+        }
+    }
+
+    private bool CanRenderAsNewAudio() =>
+        PlaybackEditingClip is not null &&
+        !PlaybackEditingClip.IsFileMissing &&
+        !IsRenderingAudio &&
+        !IsAnalyzingLoudness &&
+        !IsBatchLoudnessAnalyzing;
+
     private bool CanSavePlaybackSettings() =>
         PlaybackEditingClip is not null &&
+        !IsRenderingAudio &&
         !IsAnalyzingLoudness &&
         !IsBatchLoudnessAnalyzing;
 
@@ -1722,6 +1871,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (UnauthorizedAccessException)
         {
             // See above: cleanup failure must not turn a successful import into failure.
+        }
+    }
+
+    private static void TryDeleteRender(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Keep the export error visible even if temporary cleanup fails.
         }
     }
 

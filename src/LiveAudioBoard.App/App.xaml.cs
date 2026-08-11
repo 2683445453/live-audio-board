@@ -45,6 +45,7 @@ public partial class App : Application
                 repository,
                 _playbackService,
                 new NaudioRecordingService(),
+                new NaudioAudioClipRenderer(),
                 new NaudioAudioMetadataReader(),
                 new WpfAudioFilePicker(),
                 JsonAppSettingsStore.CreateDefault(),
