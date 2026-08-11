@@ -44,6 +44,7 @@ public partial class App : Application
             var viewModel = new MainViewModel(
                 repository,
                 _playbackService,
+                new NaudioRecordingService(),
                 new NaudioAudioMetadataReader(),
                 new WpfAudioFilePicker(),
                 JsonAppSettingsStore.CreateDefault(),

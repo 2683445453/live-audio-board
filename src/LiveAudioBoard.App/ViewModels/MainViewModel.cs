@@ -14,6 +14,7 @@ using LiveAudioBoard.Core.Library;
 using LiveAudioBoard.Core.Recovery;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
+using LiveAudioBoard.Core.Recording;
 using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App.ViewModels;
@@ -25,6 +26,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private readonly IAudioLibraryRepository _repository;
     private readonly IAudioPlaybackService _playbackService;
+    private readonly IAudioRecordingService _recordingService;
     private readonly IAudioMetadataReader _metadataReader;
     private readonly IAudioFilePicker _filePicker;
     private readonly IAppSettingsStore _settingsStore;
@@ -47,6 +49,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public MainViewModel(
         IAudioLibraryRepository repository,
         IAudioPlaybackService playbackService,
+        IAudioRecordingService recordingService,
         IAudioMetadataReader metadataReader,
         IAudioFilePicker filePicker,
         IAppSettingsStore settingsStore,
@@ -57,6 +60,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         _repository = repository;
         _playbackService = playbackService;
+        _recordingService = recordingService;
         _metadataReader = metadataReader;
         _filePicker = filePicker;
         _settingsStore = settingsStore;
@@ -149,6 +153,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackRouteChoice.MonitorOnly
     ];
 
+    public IReadOnlyList<RecordingSourceChoice> RecordingSourceOptions { get; } =
+    [
+        RecordingSourceChoice.Microphone,
+        RecordingSourceChoice.SystemLoopback
+    ];
+
+    public IReadOnlyList<int> RecordingDurationOptions { get; } = [15, 30, 60, 120, 300];
+
     public string PlaybackLoopDraftText => PlaybackLoopDraft
         ? "✓ 已开启循环"
         : "开启循环";
@@ -225,6 +237,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ImportAudioCommand))]
     [NotifyCanExecuteChangedFor(nameof(ImportFolderCommand))]
     private bool isImporting;
+
+    [ObservableProperty]
+    private bool isRecordingCenterOpen;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
+    private bool isRecording;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartRecordingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopRecordingCommand))]
+    private bool isFinalizingRecording;
+
+    [ObservableProperty]
+    private RecordingSourceChoice selectedRecordingSource = RecordingSourceChoice.Microphone;
+
+    [ObservableProperty]
+    private int recordingMaximumDurationSeconds = 60;
+
+    [ObservableProperty]
+    private bool recordingTrimSilence = true;
+
+    [ObservableProperty]
+    private string recordingElapsedText = "00:00";
+
+    [ObservableProperty]
+    private double recordingLevelPercent;
+
+    [ObservableProperty]
+    private string recordingStatus = "选择来源后开始录音；完成后会自动加入“录音”分类。";
 
     [ObservableProperty]
     private string nowPlayingTitle = "尚未播放";
@@ -543,6 +586,98 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 AudioOutputDevice.FollowDefaultDeviceId);
         }
     }
+
+    [RelayCommand]
+    private void OpenRecordingCenter()
+    {
+        IsRecordingCenterOpen = true;
+        RecordingStatus = IsRecording
+            ? "正在录音，可继续操作音效板。"
+            : "选择来源后开始录音；完成后会自动加入“录音”分类。";
+    }
+
+    [RelayCommand]
+    private void CloseRecordingCenter()
+    {
+        if (IsRecording || IsFinalizingRecording)
+        {
+            RecordingStatus = "请先停止并保存当前录音。";
+            return;
+        }
+
+        IsRecordingCenterOpen = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStartRecording))]
+    private async Task StartRecordingAsync()
+    {
+        var outputDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LiveAudioBoard",
+            "Recordings");
+        var outputPath = Path.Combine(
+            outputDirectory,
+            $"recording-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}.wav");
+        try
+        {
+            await _recordingService.StartAsync(new AudioRecordingOptions(
+                outputPath,
+                SelectedRecordingSource.Source,
+                RecordingMaximumDurationSeconds,
+                RecordingTrimSilence));
+            IsRecording = true;
+            RecordingElapsedText = "00:00";
+            RecordingLevelPercent = 0;
+            RecordingStatus = SelectedRecordingSource.Source == AudioRecordingSource.Microphone
+                ? "正在录制默认麦克风…"
+                : "正在录制默认系统输出…";
+            StatusText = "录音已开始，可继续触发音效";
+        }
+        catch (Exception exception)
+        {
+            RecordingStatus = $"无法开始录音：{exception.Message}";
+            StatusText = RecordingStatus;
+        }
+    }
+
+    private bool CanStartRecording() => !IsRecording && !IsFinalizingRecording;
+
+    [RelayCommand(CanExecute = nameof(CanStopRecording))]
+    private async Task StopRecordingAsync()
+    {
+        IsFinalizingRecording = true;
+        RecordingStatus = "正在结束录音、转换格式并分析静音…";
+        try
+        {
+            var result = await _recordingService.StopAsync();
+            IsRecording = false;
+            RecordingLevelPercent = 0;
+            if (result is null)
+            {
+                RecordingStatus = "当前没有可保存的录音。";
+                return;
+            }
+
+            var clip = await ImportRecordedAudioAsync(result);
+            RecordingStatus = result.SilenceWasTrimmed
+                ? $"已保存「{clip.Title}」并自动裁掉首尾静音"
+                : $"已保存「{clip.Title}」";
+            StatusText = RecordingStatus;
+        }
+        catch (Exception exception)
+        {
+            IsRecording = false;
+            RecordingLevelPercent = 0;
+            RecordingStatus = $"录音保存失败：{exception.Message}";
+            StatusText = RecordingStatus;
+        }
+        finally
+        {
+            IsFinalizingRecording = false;
+        }
+    }
+
+    private bool CanStopRecording() => IsRecording && !IsFinalizingRecording;
 
     [RelayCommand(CanExecute = nameof(CanImportAudio))]
     private async Task ImportAudioAsync()
@@ -1538,6 +1673,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return clip;
     }
 
+    private async Task<AudioClip> ImportRecordedAudioAsync(AudioRecordingResult result)
+    {
+        var metadata = _metadataReader.Read(result.FilePath);
+        var managedFile = await _mediaStore.IngestAsync(
+            result.FilePath,
+            moveSource: true);
+        var clip = new AudioClip
+        {
+            Title = $"录音 {result.StartedUtc.ToLocalTime():yyyy-MM-dd HH-mm-ss}",
+            FilePath = managedFile.FilePath,
+            ContentSha256 = managedFile.ContentSha256,
+            Category = "录音",
+            DisplayOrder = GetNextDisplayOrder(),
+            DurationMilliseconds = metadata.DurationMilliseconds,
+            SourceProvider = result.Source == AudioRecordingSource.Microphone
+                ? "recording-microphone"
+                : "recording-loopback"
+        };
+
+        await _repository.UpsertAsync(clip);
+        Clips.Add(new AudioClipViewModel(clip));
+        EnsureCategory(clip.Category);
+        ShowAll();
+        RefreshFilter();
+        RefreshBatchLoudnessAvailability();
+        return clip;
+    }
+
     private static void DeleteDownloadedSource(string sourcePath, string managedPath)
     {
         try
@@ -1573,6 +1736,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnPlaybackProgressTick(object? sender, EventArgs args)
     {
+        UpdateRecordingProgress();
+
         IReadOnlyList<PlaybackProgress> progressItems;
         MasterOutputLevel masterOutputLevel;
         try
@@ -1624,6 +1789,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
             $"{FormatPlaybackDuration(primary.PositionMilliseconds)} / " +
             $"{FormatPlaybackDuration(primary.DurationMilliseconds)}" +
             (primary.IsLooping ? " · 循环" : string.Empty);
+    }
+
+    private void UpdateRecordingProgress()
+    {
+        if (!IsRecording)
+        {
+            return;
+        }
+
+        var elapsed = _recordingService.Elapsed;
+        RecordingElapsedText = elapsed.TotalHours >= 1
+            ? elapsed.ToString(@"hh\:mm\:ss")
+            : elapsed.ToString(@"mm\:ss");
+        RecordingLevelPercent = Math.Clamp(_recordingService.PeakLevel * 100d, 0d, 100d);
+        if (elapsed.TotalSeconds >= RecordingMaximumDurationSeconds &&
+            StopRecordingCommand.CanExecute(null))
+        {
+            RecordingStatus = "已达到最长录音时间，正在自动保存…";
+            StopRecordingCommand.Execute(null);
+        }
     }
 
     private void UpdateMasterOutputLevel(MasterOutputLevel level)
@@ -1789,6 +1974,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _playbackProgressTimer.Stop();
         _playbackProgressTimer.Tick -= OnPlaybackProgressTick;
         DownloadCenter.Dispose();
+        _recordingService.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
     }

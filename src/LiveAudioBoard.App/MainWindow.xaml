@@ -320,6 +320,10 @@
                     </Grid.RowDefinitions>
 
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="240" />
@@ -375,7 +379,15 @@
                             </Grid>
                         </Border>
 
-                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                        <StackPanel Grid.Row="1"
+                                    Grid.ColumnSpan="4"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding OpenRecordingCenterCommand}"
+                                    Content="录制音频" />
                             <Button Margin="0,0,8,0"
                                     Style="{StaticResource QuietButtonStyle}"
                                     Command="{Binding OpenDownloadCenterCommand}"
@@ -901,8 +913,144 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.16 · 宫格排序、分页与分类拖放" />
+                            Text="MVP 0.17 · 麦克风与系统回环录音" />
             </Grid>
+        </Grid>
+
+        <!-- Microphone and system-loopback recording workspace. -->
+        <Grid Panel.ZIndex="120" Background="#B8060A13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRecordingCenterOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Border Width="600"
+                    MaxHeight="610"
+                    Margin="24"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="录制音频" />
+                            <TextBlock Margin="0,5,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="默认设备录制 · 48 kHz 双声道 WAV · 完成后自动导入" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding CloseRecordingCenterCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭录音中心" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,26,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="录音来源" />
+                            <ComboBox Margin="0,7,0,0"
+                                      Height="42"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding RecordingSourceOptions}"
+                                      SelectedItem="{Binding SelectedRecordingSource, Mode=TwoWay}"
+                                      DisplayMemberPath="Name" />
+                            <TextBlock Margin="2,6,0,0"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding SelectedRecordingSource.Description}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="最长时长（秒）" />
+                            <ComboBox Margin="0,7,0,0"
+                                      Height="42"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding RecordingDurationOptions}"
+                                      SelectedItem="{Binding RecordingMaximumDurationSeconds, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="2"
+                            Margin="0,24,0,0"
+                            Padding="18"
+                            Background="#10FFFFFF"
+                            BorderBrush="#24FFFFFF"
+                            BorderThickness="1"
+                            CornerRadius="16">
+                        <StackPanel>
+                            <CheckBox Content="自动裁掉首尾静音（阈值 -45 dBFS，保留 80 ms 边缘）"
+                                      IsChecked="{Binding RecordingTrimSilence, Mode=TwoWay}" />
+                            <Grid Margin="0,22,0,8">
+                                <TextBlock FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="实时输入电平" />
+                                <TextBlock HorizontalAlignment="Right"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="18"
+                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                           Text="{Binding RecordingElapsedText}" />
+                            </Grid>
+                            <ProgressBar Height="8"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Maximum="100"
+                                         Value="{Binding RecordingLevelPercent}" />
+                            <TextBlock Margin="0,18,0,0"
+                                       MinHeight="36"
+                                       FontSize="11"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="{Binding RecordingStatus}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="3" Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Height="42"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Command="{Binding StartRecordingCommand}"
+                                Content="●  开始录音" />
+                        <Button Grid.Column="2"
+                                Height="42"
+                                Style="{StaticResource QuietButtonStyle}"
+                                Foreground="{StaticResource DangerBrush}"
+                                Command="{Binding StopRecordingCommand}"
+                                Content="■  停止并保存" />
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- Open-license search and direct-download workspace. -->

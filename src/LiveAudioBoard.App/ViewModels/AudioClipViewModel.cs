@@ -111,6 +111,8 @@ public partial class AudioClipViewModel : ObservableObject
                 "jamendo" => "Jamendo",
                 "wikimedia_audio" => "Wikimedia Commons",
                 "direct-http" => "音频直链",
+                "recording-microphone" => "麦克风录音",
+                "recording-loopback" => "系统回环录音",
                 _ => Model.SourceProvider
             };
 
