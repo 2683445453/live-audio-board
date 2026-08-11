@@ -47,7 +47,9 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
         await using var context = CreateContext();
         return await context.AudioClips
             .AsNoTracking()
-            .OrderByDescending(item => item.CreatedUtc)
+            .OrderBy(item => item.DisplayOrder <= 0 ? 1 : 0)
+            .ThenBy(item => item.DisplayOrder)
+            .ThenByDescending(item => item.CreatedUtc)
             .ToListAsync(cancellationToken);
     }
 
@@ -149,7 +151,10 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"EnablePeakProtection\" INTEGER NOT NULL DEFAULT 1;"),
                 (
                     nameof(AudioClip.PlaybackCooldownMilliseconds),
-                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"PlaybackCooldownMilliseconds\" INTEGER NOT NULL DEFAULT 0;")
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"PlaybackCooldownMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.DisplayOrder),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"DisplayOrder\" INTEGER NOT NULL DEFAULT 0;")
             };
 
             foreach (var missingColumn in missingColumns.Where(item => !columns.Contains(item.Name)))

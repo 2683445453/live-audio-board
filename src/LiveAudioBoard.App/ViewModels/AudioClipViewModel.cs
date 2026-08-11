@@ -25,6 +25,10 @@ public partial class AudioClipViewModel : ObservableObject
 
     public string Category => Model.Category;
 
+    public int DisplayOrder => Model.DisplayOrder;
+
+    public DateTime CreatedUtc => Model.CreatedUtc;
+
     public string DurationText => Model.DurationText;
 
     public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey) ? "未绑定" : Model.Hotkey;
@@ -212,6 +216,13 @@ public partial class AudioClipViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PlaybackSettingsSummary));
         OnPropertyChanged(nameof(PlayActionText));
+    }
+
+    public void RefreshLibraryPlacement()
+    {
+        OnPropertyChanged(nameof(Category));
+        OnPropertyChanged(nameof(CategoryGlyph));
+        OnPropertyChanged(nameof(DisplayOrder));
     }
 
     public void RefreshLoudnessAnalysis() =>

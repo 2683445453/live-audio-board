@@ -8,12 +8,15 @@ namespace LiveAudioBoard.App;
 
 public partial class MainWindow : Window
 {
+    private const string AudioClipDragFormat = "LiveAudioBoard.AudioClipId";
     private const int EmergencyStopHotkeyId = 0x4C41;
     private const int FirstSoundHotkeyId = 0x5200;
     private const int MaximumHotkeyId = 0xBFFF;
 
     private WindowsGlobalHotkeyService? _globalHotkeyService;
     private readonly List<int> _soundHotkeyIds = [];
+    private Point _audioCardDragStart;
+    private AudioClipViewModel? _audioCardDragSource;
 
     public MainWindow()
     {
@@ -69,6 +72,81 @@ public partial class MainWindow : Window
         }
 
         await viewModel.ImportDroppedPathsAsync(paths);
+    }
+
+    private void AudioCard_PreviewMouseLeftButtonDown(
+        object sender,
+        MouseButtonEventArgs e)
+    {
+        _audioCardDragStart = e.GetPosition(this);
+        _audioCardDragSource = (sender as FrameworkElement)?.DataContext as AudioClipViewModel;
+    }
+
+    private void AudioCard_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _audioCardDragSource is null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - _audioCardDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - _audioCardDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var data = new DataObject();
+        data.SetData(AudioClipDragFormat, _audioCardDragSource.Model.Id.ToString("D"));
+        DragDrop.DoDragDrop((DependencyObject)sender, data, DragDropEffects.Move);
+        _audioCardDragSource = null;
+    }
+
+    private void AudioCard_DragOver(object sender, DragEventArgs e) =>
+        SetAudioClipDragEffect(e);
+
+    private async void AudioCard_Drop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not MainViewModel viewModel ||
+            (sender as FrameworkElement)?.DataContext is not AudioClipViewModel target ||
+            !TryGetDraggedClipId(e, out var sourceId))
+        {
+            return;
+        }
+
+        await viewModel.MoveClipBeforeAsync(sourceId, target.Model.Id);
+    }
+
+    private void Category_DragOver(object sender, DragEventArgs e) =>
+        SetAudioClipDragEffect(e);
+
+    private async void Category_Drop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (DataContext is not MainViewModel viewModel ||
+            (sender as FrameworkElement)?.DataContext is not string category ||
+            !TryGetDraggedClipId(e, out var clipId))
+        {
+            return;
+        }
+
+        await viewModel.MoveClipToCategoryAsync(clipId, category);
+    }
+
+    private static void SetAudioClipDragEffect(DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(AudioClipDragFormat)
+            ? DragDropEffects.Move
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private static bool TryGetDraggedClipId(DragEventArgs e, out Guid clipId)
+    {
+        clipId = Guid.Empty;
+        return e.Data.GetDataPresent(AudioClipDragFormat) &&
+               Guid.TryParse(e.Data.GetData(AudioClipDragFormat) as string, out clipId);
     }
 
     private void ToggleMaximize()

@@ -16,6 +16,8 @@ public sealed class AudioClip
 
     public bool IsFavorite { get; set; }
 
+    public int DisplayOrder { get; set; }
+
     public long DurationMilliseconds { get; set; }
 
     public double Volume { get; set; } = 1d;

@@ -229,8 +229,12 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource NavButtonStyle}"
+                                                AllowDrop="True"
                                                 Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}">
+                                                CommandParameter="{Binding}"
+                                                DragOver="Category_DragOver"
+                                                Drop="Category_Drop"
+                                                ToolTip="点击筛选；也可把音效卡拖到这里移动分类">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Width="28"
                                                            FontFamily="Segoe Fluent Icons"
@@ -388,7 +392,12 @@
                     </Grid>
 
                     <Grid Grid.Row="2">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding ClipsView}">
                                 <ItemsControl.ItemsPanel>
@@ -402,6 +411,11 @@
                                                 Height="192"
                                                 Margin="0,0,12,12"
                                                 Padding="18"
+                                                AllowDrop="True"
+                                                PreviewMouseLeftButtonDown="AudioCard_PreviewMouseLeftButtonDown"
+                                                MouseMove="AudioCard_MouseMove"
+                                                DragOver="AudioCard_DragOver"
+                                                Drop="AudioCard_Drop"
                                                 ToolTip="{Binding CardToolTip}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource GlassCardStyle}">
@@ -546,7 +560,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Grid>
+                        <Grid Grid.Row="0">
                             <Grid.Style>
                                 <Style TargetType="Grid">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -586,6 +600,47 @@
                                         Content="导入第一段音频" />
                             </StackPanel>
                         </Grid>
+
+                        <Border Grid.Row="1"
+                                Margin="0,6,0,0"
+                                Padding="10,6"
+                                HorizontalAlignment="Center"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaginationVisible}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Width="58"
+                                        Height="28"
+                                        Padding="4,2"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding PreviousLibraryPageCommand}"
+                                        Content="上一页" />
+                                <TextBlock Width="64"
+                                           VerticalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="{Binding PageSummary}" />
+                                <Button Width="58"
+                                        Height="28"
+                                        Padding="4,2"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding NextLibraryPageCommand}"
+                                        Content="下一页" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
 
@@ -846,7 +901,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.15 · 文件夹与拖放导入" />
+                            Text="MVP 0.16 · 宫格排序、分页与分类拖放" />
             </Grid>
         </Grid>
 

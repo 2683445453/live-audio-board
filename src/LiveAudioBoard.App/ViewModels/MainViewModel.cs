@@ -10,6 +10,7 @@ using LiveAudioBoard.App.Services;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Analysis;
 using LiveAudioBoard.Core.Downloads;
+using LiveAudioBoard.Core.Library;
 using LiveAudioBoard.Core.Recovery;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
@@ -20,6 +21,7 @@ namespace LiveAudioBoard.App.ViewModels;
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     private static readonly string[] DefaultCategories = ["音乐", "环境", "音效", "未分类"];
+    private const int LibraryPageSize = 8;
 
     private readonly IAudioLibraryRepository _repository;
     private readonly IAudioPlaybackService _playbackService;
@@ -31,6 +33,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly AudioImportPathResolver _audioImportPathResolver = new();
     private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
     private readonly MediaRecoveryService _mediaRecoveryService;
+    private readonly HashSet<Guid> _currentPageClipIds = [];
     private readonly DispatcherTimer _playbackProgressTimer;
     private AppSettings _settings = new();
     private CancellationTokenSource? _loudnessAnalysisCancellation;
@@ -87,6 +90,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
         ClipsView.Filter = MatchesCurrentFilter;
+        ClipsView.SortDescriptions.Add(new SortDescription(
+            nameof(AudioClipViewModel.DisplayOrder),
+            ListSortDirection.Ascending));
+        ClipsView.SortDescriptions.Add(new SortDescription(
+            nameof(AudioClipViewModel.CreatedUtc),
+            ListSortDirection.Descending));
         _playbackService.StateChanged += OnPlaybackStateChanged;
         _playbackService.OutputDevicesChanged += OnOutputDevicesChanged;
 
@@ -195,6 +204,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ? "0 路活动"
         : $"{ActivePlaybackCount} 路混音中";
 
+    public string PageSummary => $"{CurrentPage} / {TotalPages}";
+
     [ObservableProperty]
     private string searchText = string.Empty;
 
@@ -247,6 +258,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string resultSummary = "0 段音频";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousLibraryPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextLibraryPageCommand))]
+    private int currentPage = 1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageSummary))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousLibraryPageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextLibraryPageCommand))]
+    private int totalPages = 1;
+
+    [ObservableProperty]
+    private bool isPaginationVisible;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(OutputDeviceName))]
@@ -362,9 +388,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settings = await _settingsStore.LoadAsync(cancellationToken);
 
         var clips = await _repository.GetAllAsync(cancellationToken);
+        var orderResult = AudioClipOrderService.Normalize(clips);
+        foreach (var changedClip in orderResult.ChangedClips)
+        {
+            await _repository.UpsertAsync(changedClip, cancellationToken);
+        }
+
         var automaticallyRecovered = 0;
         var missingFiles = 0;
-        foreach (var clip in clips)
+        foreach (var clip in orderResult.OrderedClips)
         {
             if (!File.Exists(clip.FilePath))
             {
@@ -412,11 +444,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    partial void OnSearchTextChanged(string value) => RefreshFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        CurrentPage = 1;
+        RefreshFilter();
+    }
 
-    partial void OnSelectedCategoryChanged(string value) => RefreshFilter();
+    partial void OnSelectedCategoryChanged(string value)
+    {
+        CurrentPage = 1;
+        RefreshFilter();
+    }
 
-    partial void OnFavoritesOnlyChanged(bool value) => RefreshFilter();
+    partial void OnFavoritesOnlyChanged(bool value)
+    {
+        CurrentPage = 1;
+        RefreshFilter();
+    }
 
     partial void OnHotkeyEditingClipChanged(AudioClipViewModel? value)
     {
@@ -606,6 +650,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                         FilePath = managedFile.FilePath,
                         ContentSha256 = managedFile.ContentSha256,
                         Category = category,
+                        DisplayOrder = GetNextDisplayOrder(),
                         DurationMilliseconds = metadata.DurationMilliseconds
                     };
 
@@ -1101,6 +1146,69 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SelectedCategory = string.IsNullOrWhiteSpace(category) ? "全部音频" : category;
     }
 
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousLibraryPage))]
+    private void PreviousLibraryPage()
+    {
+        CurrentPage--;
+        RefreshFilter();
+    }
+
+    private bool CanGoToPreviousLibraryPage() => CurrentPage > 1;
+
+    [RelayCommand(CanExecute = nameof(CanGoToNextLibraryPage))]
+    private void NextLibraryPage()
+    {
+        CurrentPage++;
+        RefreshFilter();
+    }
+
+    private bool CanGoToNextLibraryPage() => CurrentPage < TotalPages;
+
+    public async Task MoveClipBeforeAsync(Guid sourceId, Guid targetId)
+    {
+        var changed = AudioClipOrderService.MoveBefore(
+            Clips.Select(clip => clip.Model),
+            sourceId,
+            targetId);
+        if (changed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var clip in changed)
+        {
+            await _repository.UpsertAsync(clip);
+            Clips.First(item => item.Model.Id == clip.Id).RefreshLibraryPlacement();
+        }
+
+        RefreshFilter();
+        StatusText = "音效顺序已保存";
+    }
+
+    public async Task MoveClipToCategoryAsync(Guid clipId, string category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return;
+        }
+
+        var clip = Clips.FirstOrDefault(item => item.Model.Id == clipId);
+        if (clip is null || string.Equals(
+                clip.Category,
+                category,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        clip.Model.Category = category;
+        await _repository.UpsertAsync(clip.Model);
+        clip.RefreshLibraryPlacement();
+        EnsureCategory(category);
+        RefreshFilter();
+        StatusText = $"已将「{clip.Title}」移动到「{category}」";
+    }
+
     [RelayCommand]
     private void OpenDownloadCenter()
     {
@@ -1304,13 +1412,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(MonitorOutputDeviceName));
     }
 
-    private bool MatchesCurrentFilter(object item)
-    {
-        if (item is not AudioClipViewModel clip)
-        {
-            return false;
-        }
+    private bool MatchesCurrentFilter(object item) =>
+        item is AudioClipViewModel clip && _currentPageClipIds.Contains(clip.Model.Id);
 
+    private bool MatchesLibraryCriteria(AudioClipViewModel clip)
+    {
         if (FavoritesOnly && !clip.IsFavorite)
         {
             return false;
@@ -1335,13 +1441,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void RefreshFilter()
     {
+        var matches = Clips
+            .Where(MatchesLibraryCriteria)
+            .OrderBy(clip => clip.DisplayOrder)
+            .ThenByDescending(clip => clip.CreatedUtc)
+            .ThenBy(clip => clip.Model.Id)
+            .ToArray();
+        var page = LibraryPageWindow.Create(matches.Length, CurrentPage, LibraryPageSize);
+        CurrentPage = page.CurrentPage;
+        TotalPages = page.TotalPages;
+        IsPaginationVisible = page.TotalPages > 1;
+        _currentPageClipIds.Clear();
+        foreach (var clip in matches.Skip(page.Skip).Take(page.Take))
+        {
+            _currentPageClipIds.Add(clip.Model.Id);
+        }
+
         ClipsView.Refresh();
-        var count = ClipsView.Cast<object>().Count();
-        var missingCount = Clips.Count(clip => clip.IsFileMissing);
-        HasNoResults = count == 0;
-        ResultSummary = (count == 1 ? "1 段音频" : $"{count} 段音频") +
+        var missingCount = matches.Count(clip => clip.IsFileMissing);
+        HasNoResults = matches.Length == 0;
+        ResultSummary = (matches.Length == 1 ? "1 段音频" : $"{matches.Length} 段音频") +
             (missingCount > 0 ? $" · {missingCount} 个文件缺失" : string.Empty);
     }
+
+    private int GetNextDisplayOrder() =>
+        Clips.Count == 0 ? 1 : Clips.Max(clip => clip.Model.DisplayOrder) + 1;
 
     private void EnsureCategory(string category)
     {
@@ -1396,6 +1520,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             FilePath = managedFile.FilePath,
             ContentSha256 = managedFile.ContentSha256,
             Category = "下载",
+            DisplayOrder = GetNextDisplayOrder(),
             DurationMilliseconds = metadata.DurationMilliseconds,
             SourceProvider = result.ProviderId ?? provider.Id,
             SourceUrl = result.Source.AbsoluteUri,

@@ -55,6 +55,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             var saved = Assert.Single(await repository.GetAllAsync());
             Assert.Equal(new string('b', 64), saved.ContentSha256);
             Assert.Equal(AudioPlaybackRoute.LiveAndMonitor, saved.PlaybackRoute);
+            Assert.Equal(0, saved.DisplayOrder);
         }
         finally
         {
@@ -80,6 +81,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Title = "Air horn",
             FilePath = Path.Combine(testDirectory, "air-horn.mp3"),
             Hotkey = "Ctrl+Alt+1",
+            DisplayOrder = 7,
             LoopPlayback = true,
             ExclusivePlayback = true,
             PlaybackRoute = AudioPlaybackRoute.MonitorOnly,
@@ -103,6 +105,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
 
             var saved = Assert.Single(await repository.GetAllAsync());
             Assert.Equal("Ctrl+Alt+1", saved.Hotkey);
+            Assert.Equal(7, saved.DisplayOrder);
             Assert.True(saved.LoopPlayback);
             Assert.True(saved.ExclusivePlayback);
             Assert.Equal(AudioPlaybackRoute.MonitorOnly, saved.PlaybackRoute);

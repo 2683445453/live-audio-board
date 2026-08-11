@@ -19,6 +19,7 @@ internal sealed class AudioLibraryDbContext(DbContextOptions<AudioLibraryDbConte
         clip.Property(item => item.FilePath).HasMaxLength(2048).IsRequired();
         clip.Property(item => item.ContentSha256).HasMaxLength(64);
         clip.Property(item => item.Category).HasMaxLength(120).IsRequired();
+        clip.Property(item => item.DisplayOrder).HasDefaultValue(0);
         clip.Property(item => item.LoopPlayback).HasDefaultValue(false);
         clip.Property(item => item.ExclusivePlayback).HasDefaultValue(false);
         clip.Property(item => item.PlaybackRoute).HasDefaultValue(
