@@ -38,6 +38,12 @@ public sealed class AudioClip
 
     public DateTime? LoudnessAnalyzedUtc { get; set; }
 
+    public bool UseRecommendedGain { get; set; }
+
+    public bool EnablePeakProtection { get; set; } = true;
+
+    public int PlaybackCooldownMilliseconds { get; set; }
+
     public string? Hotkey { get; set; }
 
     public string? SourceProvider { get; set; }

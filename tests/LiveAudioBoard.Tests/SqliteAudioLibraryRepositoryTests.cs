@@ -87,7 +87,10 @@ public sealed class SqliteAudioLibraryRepositoryTests
             IntegratedLufs = -18.2,
             SamplePeakDbfs = -2.4,
             RecommendedGainDb = 1.2,
-            LoudnessAnalyzedUtc = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc)
+            LoudnessAnalyzedUtc = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc),
+            UseRecommendedGain = true,
+            EnablePeakProtection = true,
+            PlaybackCooldownMilliseconds = 500
         };
 
         try
@@ -109,12 +112,17 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Assert.Equal(
                 new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc),
                 saved.LoudnessAnalyzedUtc);
+            Assert.True(saved.UseRecommendedGain);
+            Assert.True(saved.EnablePeakProtection);
+            Assert.Equal(500, saved.PlaybackCooldownMilliseconds);
 
             clip.Hotkey = null;
+            clip.EnablePeakProtection = false;
             await repository.UpsertAsync(clip);
 
             var cleared = Assert.Single(await repository.GetAllAsync());
             Assert.Null(cleared.Hotkey);
+            Assert.False(cleared.EnablePeakProtection);
         }
         finally
         {

@@ -709,7 +709,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.7 · 修剪与响度" />
+                            Text="MVP 0.8 · 直播安全播放" />
             </Grid>
         </Grid>
 
@@ -1301,6 +1301,21 @@
                                                FontSize="9"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Text="分析整段文件；目标 -16 LUFS，峰值余量保留到 -1 dBFS" />
+                                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                        <Button Width="126"
+                                                Height="32"
+                                                Style="{StaticResource QuietButtonStyle}"
+                                                Padding="7,3"
+                                                Command="{Binding ToggleRecommendedGainCommand}"
+                                                Content="{Binding RecommendedGainDraftText}" />
+                                        <Button Width="112"
+                                                Height="32"
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource QuietButtonStyle}"
+                                                Padding="7,3"
+                                                Command="{Binding TogglePeakProtectionCommand}"
+                                                Content="{Binding PeakProtectionDraftText}" />
+                                    </StackPanel>
                                 </StackPanel>
                                 <Button Width="132"
                                         Height="36"
@@ -1309,6 +1324,42 @@
                                         Style="{StaticResource QuietButtonStyle}"
                                         Command="{Binding AnalyzeLoudnessCommand}"
                                         Content="{Binding LoudnessAnalysisActionText}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="播放冷却" />
+                                    <TextBlock Margin="0,4,150,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="忽略冷却期内的重复点击和快捷键触发，循环停止不受限制。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Grid Width="132" HorizontalAlignment="Right">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Height="40"
+                                              Style="{StaticResource GlassComboBoxStyle}"
+                                              ItemsSource="{Binding CooldownDurationOptions}"
+                                              SelectedItem="{Binding PlaybackCooldownDraft, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="7,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="ms" />
+                                </Grid>
                             </Grid>
                         </Border>
 

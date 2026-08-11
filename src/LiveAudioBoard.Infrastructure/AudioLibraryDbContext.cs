@@ -24,6 +24,9 @@ internal sealed class AudioLibraryDbContext(DbContextOptions<AudioLibraryDbConte
         clip.Property(item => item.FadeOutMilliseconds).HasDefaultValue(0);
         clip.Property(item => item.StartOffsetMilliseconds).HasDefaultValue(0L);
         clip.Property(item => item.EndOffsetMilliseconds).HasDefaultValue(0L);
+        clip.Property(item => item.UseRecommendedGain).HasDefaultValue(false);
+        clip.Property(item => item.EnablePeakProtection).HasDefaultValue(true);
+        clip.Property(item => item.PlaybackCooldownMilliseconds).HasDefaultValue(0);
         clip.Property(item => item.Hotkey).HasMaxLength(120);
         clip.Property(item => item.SourceProvider).HasMaxLength(120);
         clip.Property(item => item.SourceUrl).HasMaxLength(2048);

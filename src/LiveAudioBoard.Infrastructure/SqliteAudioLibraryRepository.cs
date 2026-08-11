@@ -137,7 +137,16 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"RecommendedGainDb\" REAL NULL;"),
                 (
                     nameof(AudioClip.LoudnessAnalyzedUtc),
-                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"LoudnessAnalyzedUtc\" TEXT NULL;")
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"LoudnessAnalyzedUtc\" TEXT NULL;"),
+                (
+                    nameof(AudioClip.UseRecommendedGain),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"UseRecommendedGain\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.EnablePeakProtection),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"EnablePeakProtection\" INTEGER NOT NULL DEFAULT 1;"),
+                (
+                    nameof(AudioClip.PlaybackCooldownMilliseconds),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"PlaybackCooldownMilliseconds\" INTEGER NOT NULL DEFAULT 0;")
             };
 
             foreach (var missingColumn in missingColumns.Where(item => !columns.Contains(item.Name)))

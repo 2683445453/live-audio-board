@@ -214,10 +214,12 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
                 source = new WdlResamplingSampleProvider(source, MixerSampleRate);
             }
 
-            var mixerInput = new VolumeSampleProvider(source)
-            {
-                Volume = (float)options.Volume
-            };
+            var mixerInput = new GainAndPeakProtectionSampleProvider(
+                source,
+                options.Volume,
+                options.GainDb,
+                options.EnablePeakProtection,
+                options.PeakCeilingDbfs);
             var voice = new PlaybackVoice(
                 Guid.NewGuid(),
                 sourceId,

@@ -117,6 +117,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<int> FadeDurationOptions { get; } = [0, 100, 250, 500, 1000, 2000];
 
+    public IReadOnlyList<int> CooldownDurationOptions { get; } = [0, 250, 500, 1000, 2000, 5000];
+
     public string PlaybackLoopDraftText => PlaybackLoopDraft
         ? "✓ 已开启循环"
         : "开启循环";
@@ -124,6 +126,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string PlaybackExclusiveDraftText => PlaybackExclusiveDraft
         ? "✓ 已开启独占"
         : "开启独占";
+
+    public string RecommendedGainDraftText
+    {
+        get
+        {
+            var gain = PlaybackEditingClip?.Model.RecommendedGainDb;
+            if (!gain.HasValue)
+            {
+                return "先分析响度";
+            }
+
+            return PlaybackUseRecommendedGainDraft
+                ? $"✓ 增益 {gain:+0.0;-0.0;0.0} dB"
+                : $"应用 {gain:+0.0;-0.0;0.0} dB";
+        }
+    }
+
+    public string PeakProtectionDraftText => PlaybackPeakProtectionDraft
+        ? "✓ 峰值保护"
+        : "峰值保护";
 
     public string PlaybackTrimDraftSummary =>
         $"{FormatPlaybackDuration((long)PlaybackStartDraft)} – " +
@@ -237,6 +259,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private int playbackFadeOutDraft;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecommendedGainDraftText))]
+    private bool playbackUseRecommendedGainDraft;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PeakProtectionDraftText))]
+    private bool playbackPeakProtectionDraft = true;
+
+    [ObservableProperty]
+    private int playbackCooldownDraft;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlaybackTrimDraftSummary))]
     private double playbackStartDraft;
 
@@ -296,6 +329,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackExclusiveDraft = value?.Model.ExclusivePlayback ?? false;
         PlaybackFadeInDraft = NormalizeFadeDuration(value?.Model.FadeInMilliseconds ?? 0);
         PlaybackFadeOutDraft = NormalizeFadeDuration(value?.Model.FadeOutMilliseconds ?? 0);
+        PlaybackUseRecommendedGainDraft = value?.Model.UseRecommendedGain ?? false;
+        PlaybackPeakProtectionDraft = value?.Model.EnablePeakProtection ?? true;
+        PlaybackCooldownDraft = NormalizeCooldownDuration(
+            value?.Model.PlaybackCooldownMilliseconds ?? 0);
         PlaybackTrimMaximum = Math.Max(1d, value?.Model.DurationMilliseconds ?? 1d);
         PlaybackStartDraft = Math.Clamp(
             value?.Model.StartOffsetMilliseconds ?? 0,
@@ -305,6 +342,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ? Math.Clamp(value.Model.EndOffsetMilliseconds, 0d, PlaybackTrimMaximum)
             : PlaybackTrimMaximum;
         OnPropertyChanged(nameof(PlaybackLoudnessSummary));
+        OnPropertyChanged(nameof(RecommendedGainDraftText));
         PlaybackSettingsStatus = value is null
             ? "请先选择一条音频。"
             : "设置只影响后续播放，不会修改原始音频文件。";
@@ -432,16 +470,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            var triggeredUtc = DateTimeOffset.UtcNow;
+            var cooldownRemaining = clip.GetPlaybackCooldownRemaining(triggeredUtc);
+            if (cooldownRemaining > TimeSpan.Zero)
+            {
+                StatusText =
+                    $"「{clip.Title}」仍在冷却中 · {Math.Ceiling(cooldownRemaining.TotalMilliseconds)} ms";
+                return;
+            }
+
             _playbackService.Play(
                 clip.FilePath,
                 new AudioPlaybackOptions(
-                    clip.Model.Volume,
-                    clip.Model.LoopPlayback,
-                    clip.Model.ExclusivePlayback,
-                    clip.Model.FadeInMilliseconds,
-                    clip.Model.FadeOutMilliseconds,
-                    clip.Model.StartOffsetMilliseconds,
-                    clip.Model.EndOffsetMilliseconds));
+                    Volume: clip.Model.Volume,
+                    Loop: clip.Model.LoopPlayback,
+                    Exclusive: clip.Model.ExclusivePlayback,
+                    FadeInMilliseconds: clip.Model.FadeInMilliseconds,
+                    FadeOutMilliseconds: clip.Model.FadeOutMilliseconds,
+                    StartOffsetMilliseconds: clip.Model.StartOffsetMilliseconds,
+                    EndOffsetMilliseconds: clip.Model.EndOffsetMilliseconds,
+                    GainDb: clip.Model.UseRecommendedGain
+                        ? clip.Model.RecommendedGainDb ?? 0d
+                        : 0d,
+                    EnablePeakProtection: clip.Model.EnablePeakProtection));
+            clip.MarkPlaybackTriggered(triggeredUtc);
         }
         catch (Exception exception)
         {
@@ -466,6 +518,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void TogglePlaybackExclusive() =>
         PlaybackExclusiveDraft = !PlaybackExclusiveDraft;
+
+    [RelayCommand]
+    private void ToggleRecommendedGain()
+    {
+        if (PlaybackEditingClip?.Model.RecommendedGainDb is null)
+        {
+            PlaybackSettingsStatus = "请先完成响度分析，再启用建议增益。";
+            return;
+        }
+
+        PlaybackUseRecommendedGainDraft = !PlaybackUseRecommendedGainDraft;
+    }
+
+    [RelayCommand]
+    private void TogglePeakProtection() =>
+        PlaybackPeakProtectionDraft = !PlaybackPeakProtectionDraft;
 
     [RelayCommand]
     private void ResetPlaybackTrim()
@@ -499,7 +567,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             PlaybackEditingClip.Model.LoudnessAnalyzedUtc = analysis.AnalyzedUtc;
             await _repository.UpsertAsync(PlaybackEditingClip.Model);
             PlaybackEditingClip.RefreshLoudnessAnalysis();
+            PlaybackEditingClip.RefreshPlaybackSettings();
             OnPropertyChanged(nameof(PlaybackLoudnessSummary));
+            OnPropertyChanged(nameof(RecommendedGainDraftText));
             PlaybackSettingsStatus = $"分析完成：{PlaybackEditingClip.LoudnessSummary}";
             StatusText = $"已完成「{PlaybackEditingClip.Title}」的响度分析";
         }
@@ -536,6 +606,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (PlaybackUseRecommendedGainDraft &&
+            !PlaybackEditingClip.Model.RecommendedGainDb.HasValue)
+        {
+            PlaybackSettingsStatus = "建议增益尚不可用，请先分析响度。";
+            return;
+        }
+
         foreach (var playbackId in PlaybackEditingClip.ActivePlaybackIds.ToArray())
         {
             _playbackService.Stop(playbackId);
@@ -545,6 +622,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackEditingClip.Model.ExclusivePlayback = PlaybackExclusiveDraft;
         PlaybackEditingClip.Model.FadeInMilliseconds = NormalizeFadeDuration(PlaybackFadeInDraft);
         PlaybackEditingClip.Model.FadeOutMilliseconds = NormalizeFadeDuration(PlaybackFadeOutDraft);
+        PlaybackEditingClip.Model.UseRecommendedGain = PlaybackUseRecommendedGainDraft;
+        PlaybackEditingClip.Model.EnablePeakProtection = PlaybackPeakProtectionDraft;
+        PlaybackEditingClip.Model.PlaybackCooldownMilliseconds =
+            NormalizeCooldownDuration(PlaybackCooldownDraft);
         PlaybackEditingClip.Model.StartOffsetMilliseconds = (long)Math.Round(PlaybackStartDraft);
         PlaybackEditingClip.Model.EndOffsetMilliseconds =
             PlaybackEndDraft >= PlaybackTrimMaximum - 1d
@@ -562,6 +643,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private int NormalizeFadeDuration(int value) =>
         FadeDurationOptions.Contains(value) ? value : 0;
+
+    private int NormalizeCooldownDuration(int value) =>
+        CooldownDurationOptions.Contains(value) ? value : 0;
 
     [RelayCommand]
     private void StopAll()

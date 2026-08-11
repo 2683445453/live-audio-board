@@ -6,6 +6,7 @@ namespace LiveAudioBoard.App.ViewModels;
 public partial class AudioClipViewModel : ObservableObject
 {
     private readonly HashSet<Guid> _activePlaybackIds = [];
+    private DateTimeOffset? _lastPlaybackTriggeredUtc;
 
     public AudioClipViewModel(AudioClip model)
     {
@@ -51,6 +52,21 @@ public partial class AudioClipViewModel : ObservableObject
                     ? FormatDuration(Model.EndOffsetMilliseconds)
                     : DurationText;
                 modes.Add($"区间 {FormatDuration(Model.StartOffsetMilliseconds)}–{end}");
+            }
+
+            if (Model.UseRecommendedGain && Model.RecommendedGainDb.HasValue)
+            {
+                modes.Add($"增益 {Model.RecommendedGainDb:+0.0;-0.0;0.0} dB");
+            }
+
+            if (Model.EnablePeakProtection)
+            {
+                modes.Add("峰值保护");
+            }
+
+            if (Model.PlaybackCooldownMilliseconds > 0)
+            {
+                modes.Add($"冷却 {Model.PlaybackCooldownMilliseconds} ms");
             }
 
             return modes.Count == 0 ? "标准混音" : string.Join(" · ", modes);
@@ -166,6 +182,21 @@ public partial class AudioClipViewModel : ObservableObject
 
     public void RefreshLoudnessAnalysis() =>
         OnPropertyChanged(nameof(LoudnessSummary));
+
+    public TimeSpan GetPlaybackCooldownRemaining(DateTimeOffset now)
+    {
+        if (Model.PlaybackCooldownMilliseconds <= 0 || !_lastPlaybackTriggeredUtc.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var availableAt = _lastPlaybackTriggeredUtc.Value.AddMilliseconds(
+            Model.PlaybackCooldownMilliseconds);
+        return availableAt > now ? availableAt - now : TimeSpan.Zero;
+    }
+
+    public void MarkPlaybackTriggered(DateTimeOffset triggeredUtc) =>
+        _lastPlaybackTriggeredUtc = triggeredUtc;
 
     private static string FormatDuration(long milliseconds)
     {
