@@ -16,6 +16,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
     private readonly object _gate = new();
     private readonly MixingSampleProvider _mixer;
+    private readonly MasterPeakLimiterSampleProvider _masterBus;
     private readonly Dictionary<ISampleProvider, PlaybackVoice> _voices = [];
     private WasapiOut? _output;
     private MMDevice? _activeOutputDevice;
@@ -29,6 +30,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         {
             ReadFully = true
         };
+        _masterBus = new MasterPeakLimiterSampleProvider(_mixer);
         _mixer.MixerInputEnded += OnMixerInputEnded;
     }
 
@@ -333,6 +335,12 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         }
     }
 
+    public MasterOutputLevel GetMasterOutputLevel()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _masterBus.GetLevelAndReset();
+    }
+
     private void EnsureOutputStartedNoLock()
     {
         if (_output is not null)
@@ -356,7 +364,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         }
 
         _output.PlaybackStopped += OnOutputPlaybackStopped;
-        _output.Init(_mixer);
+        _output.Init(_masterBus);
         _output.Play();
     }
 

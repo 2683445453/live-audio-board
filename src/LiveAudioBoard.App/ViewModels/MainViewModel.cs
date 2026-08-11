@@ -196,6 +196,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool isPlaying;
 
     [ObservableProperty]
+    private double masterLevelPercent;
+
+    [ObservableProperty]
+    private string masterOutputLevelText = "-∞ dBFS";
+
+    [ObservableProperty]
+    private string masterGainReductionText = "主总线余量正常";
+
+    [ObservableProperty]
+    private bool isMasterLimiting;
+
+    [ObservableProperty]
     private bool hasNoResults = true;
 
     [ObservableProperty]
@@ -1037,14 +1049,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OnPlaybackProgressTick(object? sender, EventArgs args)
     {
         IReadOnlyList<PlaybackProgress> progressItems;
+        MasterOutputLevel masterOutputLevel;
         try
         {
             progressItems = _playbackService.GetActivePlaybackProgress();
+            masterOutputLevel = _playbackService.GetMasterOutputLevel();
         }
         catch (ObjectDisposedException)
         {
             return;
         }
+
+        UpdateMasterOutputLevel(masterOutputLevel);
 
         foreach (var clip in Clips.Where(item => item.IsPlaying))
         {
@@ -1083,6 +1099,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
             $"{FormatPlaybackDuration(primary.PositionMilliseconds)} / " +
             $"{FormatPlaybackDuration(primary.DurationMilliseconds)}" +
             (primary.IsLooping ? " · 循环" : string.Empty);
+    }
+
+    private void UpdateMasterOutputLevel(MasterOutputLevel level)
+    {
+        var targetPercent = Math.Clamp((level.PeakDbfs + 60d) / 60d * 100d, 0d, 100d);
+        MasterLevelPercent = targetPercent >= MasterLevelPercent
+            ? targetPercent
+            : Math.Max(0d, MasterLevelPercent - 8d);
+        MasterOutputLevelText = MasterLevelPercent <= 0.1d
+            ? "-∞ dBFS"
+            : $"{MasterLevelPercent / 100d * 60d - 60d:0.0} dBFS";
+        IsMasterLimiting = level.IsLimiting;
+        MasterGainReductionText = level.IsLimiting
+            ? $"总线限幅 -{level.GainReductionDb:0.0} dB"
+            : "主总线余量正常";
     }
 
     private static string FormatPlaybackDuration(long milliseconds)

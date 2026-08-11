@@ -27,4 +27,6 @@ public interface IAudioPlaybackService : IDisposable
     void StopAll();
 
     IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress() => [];
+
+    MasterOutputLevel GetMasterOutputLevel() => MasterOutputLevel.Silent;
 }
