@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveAudioBoard.App.Services;
@@ -24,7 +25,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioFilePicker _filePicker;
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
+    private readonly DispatcherTimer _playbackProgressTimer;
     private AppSettings _settings = new();
+    private Guid? _primaryPlaybackId;
     private bool _suppressDeviceSelection;
     private bool _disposed;
 
@@ -46,6 +49,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _filePicker = filePicker;
         _settingsStore = settingsStore;
         _mediaStore = mediaStore;
+
+        _playbackProgressTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(120)
+        };
+        _playbackProgressTimer.Tick += OnPlaybackProgressTick;
+        _playbackProgressTimer.Start();
 
         var downloadDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -98,6 +108,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string HotkeyEditingTitle =>
         HotkeyEditingClip?.Title ?? "尚未选择音频";
 
+    public string PlaybackEditingTitle =>
+        PlaybackEditingClip?.Title ?? "尚未选择音频";
+
+    public IReadOnlyList<int> FadeDurationOptions { get; } = [0, 100, 250, 500, 1000, 2000];
+
+    public string PlaybackLoopDraftText => PlaybackLoopDraft
+        ? "✓ 已开启循环"
+        : "开启循环";
+
+    public string PlaybackExclusiveDraftText => PlaybackExclusiveDraft
+        ? "✓ 已开启独占"
+        : "开启独占";
+
     public string OutputDeviceName =>
         SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
 
@@ -125,6 +148,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string nowPlayingSubtitle = "选择一段音频开始直播播放";
+
+    [ObservableProperty]
+    private double nowPlayingProgressPercent;
+
+    [ObservableProperty]
+    private string nowPlayingProgressText = "0:00 / 0:00";
 
     [ObservableProperty]
     private bool isPlaying;
@@ -169,6 +198,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string soundHotkeyRegistrationStatus = "音效热键尚未注册";
 
+    [ObservableProperty]
+    private bool isPlaybackSettingsOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackEditingTitle))]
+    [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    private AudioClipViewModel? playbackEditingClip;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackLoopDraftText))]
+    private bool playbackLoopDraft;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackExclusiveDraftText))]
+    private bool playbackExclusiveDraft;
+
+    [ObservableProperty]
+    private int playbackFadeInDraft;
+
+    [ObservableProperty]
+    private int playbackFadeOutDraft;
+
+    [ObservableProperty]
+    private string playbackSettingsStatus = "设置只影响后续播放，不会修改原始音频文件。";
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -201,6 +255,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         HotkeyCenterStatus = value is null
             ? "请先选择一条音频。"
             : $"正在编辑「{value.Title}」的快捷键";
+    }
+
+    partial void OnPlaybackEditingClipChanged(AudioClipViewModel? value)
+    {
+        PlaybackLoopDraft = value?.Model.LoopPlayback ?? false;
+        PlaybackExclusiveDraft = value?.Model.ExclusivePlayback ?? false;
+        PlaybackFadeInDraft = NormalizeFadeDuration(value?.Model.FadeInMilliseconds ?? 0);
+        PlaybackFadeOutDraft = NormalizeFadeDuration(value?.Model.FadeOutMilliseconds ?? 0);
+        PlaybackSettingsStatus = value is null
+            ? "请先选择一条音频。"
+            : "设置只影响后续播放，不会修改原始音频文件。";
     }
 
     partial void OnSelectedOutputDeviceChanged(AudioOutputDevice? value)
@@ -314,13 +379,78 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             SelectedClip = clip;
-            _playbackService.Play(clip.FilePath, clip.Model.Volume);
+            if (clip.Model.LoopPlayback && clip.IsPlaying)
+            {
+                foreach (var playbackId in clip.ActivePlaybackIds.ToArray())
+                {
+                    _playbackService.Stop(playbackId);
+                }
+
+                StatusText = $"已停止循环「{clip.Title}」";
+                return;
+            }
+
+            _playbackService.Play(
+                clip.FilePath,
+                new AudioPlaybackOptions(
+                    clip.Model.Volume,
+                    clip.Model.LoopPlayback,
+                    clip.Model.ExclusivePlayback,
+                    clip.Model.FadeInMilliseconds,
+                    clip.Model.FadeOutMilliseconds));
         }
         catch (Exception exception)
         {
             StatusText = $"播放失败：{exception.Message}";
         }
     }
+
+    [RelayCommand]
+    private void OpenPlaybackSettings(AudioClipViewModel? clip)
+    {
+        PlaybackEditingClip = clip ?? SelectedClip ?? Clips.FirstOrDefault();
+        IsPlaybackSettingsOpen = true;
+        StatusText = "播放设置已打开";
+    }
+
+    [RelayCommand]
+    private void ClosePlaybackSettings() => IsPlaybackSettingsOpen = false;
+
+    [RelayCommand]
+    private void TogglePlaybackLoop() => PlaybackLoopDraft = !PlaybackLoopDraft;
+
+    [RelayCommand]
+    private void TogglePlaybackExclusive() =>
+        PlaybackExclusiveDraft = !PlaybackExclusiveDraft;
+
+    [RelayCommand(CanExecute = nameof(CanSavePlaybackSettings))]
+    private async Task SavePlaybackSettingsAsync()
+    {
+        if (PlaybackEditingClip is null)
+        {
+            return;
+        }
+
+        foreach (var playbackId in PlaybackEditingClip.ActivePlaybackIds.ToArray())
+        {
+            _playbackService.Stop(playbackId);
+        }
+
+        PlaybackEditingClip.Model.LoopPlayback = PlaybackLoopDraft;
+        PlaybackEditingClip.Model.ExclusivePlayback = PlaybackExclusiveDraft;
+        PlaybackEditingClip.Model.FadeInMilliseconds = NormalizeFadeDuration(PlaybackFadeInDraft);
+        PlaybackEditingClip.Model.FadeOutMilliseconds = NormalizeFadeDuration(PlaybackFadeOutDraft);
+        await _repository.UpsertAsync(PlaybackEditingClip.Model);
+        PlaybackEditingClip.RefreshPlaybackSettings();
+
+        PlaybackSettingsStatus = "播放设置已保存，将从下一次播放开始生效。";
+        StatusText = $"已保存「{PlaybackEditingClip.Title}」的播放设置";
+    }
+
+    private bool CanSavePlaybackSettings() => PlaybackEditingClip is not null;
+
+    private int NormalizeFadeDuration(int value) =>
+        FadeDurationOptions.Contains(value) ? value : 0;
 
     [RelayCommand]
     private void StopAll()
@@ -709,6 +839,65 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return note is { Length: > 512 } ? note[..512] : note;
     }
 
+    private void OnPlaybackProgressTick(object? sender, EventArgs args)
+    {
+        IReadOnlyList<PlaybackProgress> progressItems;
+        try
+        {
+            progressItems = _playbackService.GetActivePlaybackProgress();
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
+        foreach (var clip in Clips.Where(item => item.IsPlaying))
+        {
+            var progress = progressItems.FirstOrDefault(item =>
+                clip.ActivePlaybackIds.Contains(item.PlaybackId));
+            if (progress is not null)
+            {
+                clip.UpdatePlaybackProgress(
+                    progress.PositionMilliseconds,
+                    progress.DurationMilliseconds);
+            }
+        }
+
+        var primary = _primaryPlaybackId.HasValue
+            ? progressItems.FirstOrDefault(item => item.PlaybackId == _primaryPlaybackId.Value)
+            : null;
+        if (primary is null)
+        {
+            primary = progressItems.LastOrDefault(item =>
+                Clips.Any(clip => string.Equals(
+                    clip.FilePath,
+                    item.FilePath,
+                    StringComparison.OrdinalIgnoreCase)));
+            _primaryPlaybackId = primary?.PlaybackId;
+        }
+
+        if (primary is null)
+        {
+            NowPlayingProgressPercent = 0;
+            NowPlayingProgressText = "0:00 / 0:00";
+            return;
+        }
+
+        NowPlayingProgressPercent = primary.Percent;
+        NowPlayingProgressText =
+            $"{FormatPlaybackDuration(primary.PositionMilliseconds)} / " +
+            $"{FormatPlaybackDuration(primary.DurationMilliseconds)}" +
+            (primary.IsLooping ? " · 循环" : string.Empty);
+    }
+
+    private static string FormatPlaybackDuration(long milliseconds)
+    {
+        var duration = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return duration.TotalHours >= 1
+            ? duration.ToString(@"h\:mm\:ss")
+            : duration.ToString(@"m\:ss");
+    }
+
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs args)
     {
         Application.Current.Dispatcher.Invoke(() =>
@@ -722,11 +911,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 if (args.State == PlaybackState.Playing)
                 {
-                    clip.ActivePlaybackCount++;
+                    clip.PlaybackStarted(args.PlaybackId);
                 }
-                else if (args.PlaybackId != Guid.Empty && clip.ActivePlaybackCount > 0)
+                else if (args.PlaybackId != Guid.Empty)
                 {
-                    clip.ActivePlaybackCount--;
+                    clip.PlaybackStopped(args.PlaybackId);
                 }
             }
 
@@ -736,6 +925,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             switch (args.State)
             {
                 case PlaybackState.Playing when clip is not null:
+                    _primaryPlaybackId = args.PlaybackId;
                     SelectedClip = clip;
                     NowPlayingTitle = clip.Title;
                     NowPlayingSubtitle =
@@ -747,11 +937,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     NowPlayingSubtitle = "播放失败，请检查文件和输出设备";
                     break;
                 case PlaybackState.Stopped when ActivePlaybackCount == 0:
+                    _primaryPlaybackId = null;
+                    NowPlayingProgressPercent = 0;
+                    NowPlayingProgressText = "0:00 / 0:00";
                     NowPlayingSubtitle = SelectedClip is null
                         ? "选择一段音频开始直播播放"
                         : $"{SelectedClip.Category} · 已停止";
                     break;
                 case PlaybackState.Stopped:
+                    if (_primaryPlaybackId == args.PlaybackId)
+                    {
+                        _primaryPlaybackId = null;
+                    }
+
                     NowPlayingSubtitle = ActivePlaybackSummary;
                     break;
             }
@@ -781,6 +979,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         _playbackService.StateChanged -= OnPlaybackStateChanged;
+        _playbackProgressTimer.Stop();
+        _playbackProgressTimer.Tick -= OnPlaybackProgressTick;
         DownloadCenter.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);

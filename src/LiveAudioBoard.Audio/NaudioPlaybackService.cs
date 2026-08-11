@@ -120,9 +120,13 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
     }
 
     public Guid Play(string filePath, double volume = 1d)
+        => Play(filePath, new AudioPlaybackOptions(Volume: volume));
+
+    public Guid Play(string filePath, AudioPlaybackOptions options)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentNullException.ThrowIfNull(options);
 
         if (!File.Exists(filePath))
         {
@@ -136,7 +140,7 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
                 var reader = new AudioFileReader(filePath);
                 return (reader, (ISampleProvider)reader);
             },
-            volume);
+            options.Normalize());
     }
 
     public Guid PlayRemote(Uri source, double volume = 1d)
@@ -157,20 +161,27 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
                 var reader = new MediaFoundationReader(source.AbsoluteUri);
                 return (reader, reader.ToSampleProvider());
             },
-            volume);
+            new AudioPlaybackOptions(Volume: volume));
     }
 
     private Guid PlayCore(
         string sourceId,
         Func<(WaveStream Reader, ISampleProvider SampleProvider)> sourceFactory,
-        double volume)
+        AudioPlaybackOptions options)
     {
         WaveStream? reader = null;
         try
         {
             var createdSource = sourceFactory();
             reader = createdSource.Reader;
-            ISampleProvider source = createdSource.SampleProvider;
+            var progressProvider = new LoopingFadeSampleProvider(
+                createdSource.SampleProvider,
+                reader.TotalTime,
+                options.Loop,
+                options.FadeInMilliseconds,
+                options.FadeOutMilliseconds,
+                () => reader.Position = 0);
+            ISampleProvider source = progressProvider;
 
             if (source.WaveFormat.Channels != MixerChannels)
             {
@@ -184,9 +195,19 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
             var mixerInput = new VolumeSampleProvider(source)
             {
-                Volume = (float)Math.Clamp(volume, 0d, 1d)
+                Volume = (float)options.Volume
             };
-            var voice = new PlaybackVoice(Guid.NewGuid(), sourceId, reader, mixerInput);
+            var voice = new PlaybackVoice(
+                Guid.NewGuid(),
+                sourceId,
+                reader,
+                mixerInput,
+                progressProvider);
+
+            if (options.Exclusive)
+            {
+                StopAll();
+            }
 
             int activeCount;
             lock (_gate)
@@ -270,6 +291,23 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         }
 
         RaiseStoppedEvents(stoppedVoices);
+    }
+
+    public IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        lock (_gate)
+        {
+            return _voices.Values
+                .Select(voice => new PlaybackProgress(
+                    voice.Id,
+                    voice.FilePath,
+                    voice.ProgressProvider.PositionMilliseconds,
+                    voice.ProgressProvider.DurationMilliseconds,
+                    voice.ProgressProvider.Loop))
+                .ToArray();
+        }
     }
 
     private void EnsureOutputStartedNoLock()
@@ -422,7 +460,8 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         Guid Id,
         string FilePath,
         WaveStream Reader,
-        ISampleProvider MixerInput) : IDisposable
+        ISampleProvider MixerInput,
+        LoopingFadeSampleProvider ProgressProvider) : IDisposable
     {
         public void Dispose() => Reader.Dispose();
     }

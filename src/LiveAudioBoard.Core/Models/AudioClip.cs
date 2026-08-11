@@ -18,6 +18,14 @@ public sealed class AudioClip
 
     public double Volume { get; set; } = 1d;
 
+    public bool LoopPlayback { get; set; }
+
+    public bool ExclusivePlayback { get; set; }
+
+    public int FadeInMilliseconds { get; set; }
+
+    public int FadeOutMilliseconds { get; set; }
+
     public string? Hotkey { get; set; }
 
     public string? SourceProvider { get; set; }

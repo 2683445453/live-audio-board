@@ -77,7 +77,11 @@ public sealed class SqliteAudioLibraryRepositoryTests
         {
             Title = "Air horn",
             FilePath = Path.Combine(testDirectory, "air-horn.mp3"),
-            Hotkey = "Ctrl+Alt+1"
+            Hotkey = "Ctrl+Alt+1",
+            LoopPlayback = true,
+            ExclusivePlayback = true,
+            FadeInMilliseconds = 250,
+            FadeOutMilliseconds = 500
         };
 
         try
@@ -87,6 +91,10 @@ public sealed class SqliteAudioLibraryRepositoryTests
 
             var saved = Assert.Single(await repository.GetAllAsync());
             Assert.Equal("Ctrl+Alt+1", saved.Hotkey);
+            Assert.True(saved.LoopPlayback);
+            Assert.True(saved.ExclusivePlayback);
+            Assert.Equal(250, saved.FadeInMilliseconds);
+            Assert.Equal(500, saved.FadeOutMilliseconds);
 
             clip.Hotkey = null;
             await repository.UpsertAsync(clip);

@@ -339,7 +339,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Width="226"
-                                                Height="162"
+                                                Height="192"
                                                 Margin="0,0,12,12"
                                                 Padding="18"
                                                 ToolTip="{Binding SourceSummary}">
@@ -358,6 +358,7 @@
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
                                                     <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
 
                                                 <Grid>
@@ -365,18 +366,30 @@
                                                                FontSize="25"
                                                                Foreground="{StaticResource MoonlightBrush}"
                                                                Text="{Binding CategoryGlyph}" />
-                                                    <Button Width="34"
-                                                            Height="34"
-                                                            HorizontalAlignment="Right"
-                                                            Style="{StaticResource QuietButtonStyle}"
-                                                            Padding="0"
-                                                            FontFamily="Segoe UI Symbol"
-                                                            FontSize="16"
-                                                            Foreground="{StaticResource ChampagneTextBrush}"
-                                                            Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="{Binding FavoriteGlyph}"
-                                                            ToolTip="收藏或取消收藏" />
+                                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                                        <Button Width="34"
+                                                                Height="34"
+                                                                Margin="0,0,6,0"
+                                                                Style="{StaticResource QuietButtonStyle}"
+                                                                Padding="0"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                FontSize="13"
+                                                                Command="{Binding DataContext.OpenPlaybackSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="&#xE713;"
+                                                                ToolTip="循环、独占与淡入淡出" />
+                                                        <Button Width="34"
+                                                                Height="34"
+                                                                Style="{StaticResource QuietButtonStyle}"
+                                                                Padding="0"
+                                                                FontFamily="Segoe UI Symbol"
+                                                                FontSize="16"
+                                                                Foreground="{StaticResource ChampagneTextBrush}"
+                                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding FavoriteGlyph}"
+                                                                ToolTip="收藏或取消收藏" />
+                                                    </StackPanel>
                                                 </Grid>
 
                                                 <StackPanel Grid.Row="1" Margin="0,8,0,8" VerticalAlignment="Center">
@@ -392,9 +405,30 @@
                                                         <Run Text="  ·  " />
                                                         <Run Text="{Binding DurationText, Mode=OneWay}" />
                                                     </TextBlock>
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               FontSize="9"
+                                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                                               Text="{Binding PlaybackSettingsSummary}"
+                                                               TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
 
-                                                <Grid Grid.Row="2">
+                                                <Grid Grid.Row="2" Margin="0,0,0,8">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Margin="0,0,0,4"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="8"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Text="{Binding PlaybackPositionText}" />
+                                                    <ProgressBar Grid.Row="1"
+                                                                 Style="{StaticResource GlassProgressBarStyle}"
+                                                                 Maximum="100"
+                                                                 Value="{Binding PlaybackProgressPercent}" />
+                                                </Grid>
+
+                                                <Grid Grid.Row="3">
                                                     <Button MinWidth="76"
                                                             Height="28"
                                                             HorizontalAlignment="Left"
@@ -506,6 +540,16 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Text="{Binding NowPlayingSubtitle}"
                                        TextWrapping="Wrap" />
+                            <ProgressBar Margin="0,15,0,0"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Maximum="100"
+                                         Value="{Binding NowPlayingProgressPercent}" />
+                            <TextBlock Margin="0,5,0,0"
+                                       HorizontalAlignment="Right"
+                                       FontFamily="Cascadia Mono"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding NowPlayingProgressText}" />
                         </StackPanel>
 
                         <Rectangle Grid.Row="2" Fill="#1FFFFFFF" />
@@ -665,7 +709,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.5 · 托管资料库" />
+                            Text="MVP 0.6 · 播放控制" />
             </Grid>
         </Grid>
 
@@ -1022,6 +1066,191 @@
                                     Content="{Binding DownloadCenter.DownloadedFileName}"
                                     ToolTip="在文件夹中显示最近下载" />
                         </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Non-destructive per-sound playback settings. -->
+        <Grid Panel.ZIndex="105" Background="#B8080B13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPlaybackSettingsOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="700"
+                     Height="470"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.55"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#427C9CC4" />
+                        <GradientStop Offset="0.72" Color="#1833517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="82" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="680"
+                    Height="500"
+                    Padding="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="播放设置" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="循环、独占与淡入淡出均为非破坏性设置" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding ClosePlaybackSettingsCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭播放设置" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="1" Margin="0,24,0,18">
+                        <TextBlock FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="当前音频" />
+                        <TextBlock Margin="0,5,0,0"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="{Binding PlaybackEditingTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <Grid Margin="0,22,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Height="66"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding TogglePlaybackLoopCommand}"
+                                    Content="{Binding PlaybackLoopDraftText}"
+                                    ToolTip="循环音效再次触发时会停止循环" />
+                            <Button Grid.Column="2"
+                                    Height="66"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding TogglePlaybackExclusiveCommand}"
+                                    Content="{Binding PlaybackExclusiveDraftText}"
+                                    ToolTip="播放前停止所有其他音效" />
+                        </Grid>
+
+                        <Border Margin="0,20,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="淡入时长" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Height="42"
+                                                  Style="{StaticResource GlassComboBoxStyle}"
+                                                  ItemsSource="{Binding FadeDurationOptions}"
+                                                  SelectedItem="{Binding PlaybackFadeInDraft, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="ms" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="淡出时长" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Height="42"
+                                                  Style="{StaticResource GlassComboBoxStyle}"
+                                                  ItemsSource="{Binding FadeDurationOptions}"
+                                                  SelectedItem="{Binding PlaybackFadeOutDraft, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="ms" />
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Margin="2,14,0,0"
+                                   FontSize="10"
+                                   LineHeight="16"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="{Binding PlaybackSettingsStatus}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="2">
+                        <TextBlock Margin="0,0,220,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="9"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="淡出在自然结束或每次循环边界生效；全局急停仍会立即停止。" />
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <Button Width="110"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding SavePlaybackSettingsCommand}"
+                                    Content="保存设置" />
+                            <Button Width="88"
+                                    Margin="8,0,0,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding ClosePlaybackSettingsCommand}"
+                                    Content="完成" />
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </Border>

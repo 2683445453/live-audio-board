@@ -92,29 +92,40 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
 
         try
         {
-            var hasContentHash = false;
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             await using (var query = connection.CreateCommand())
             {
                 query.CommandText = "PRAGMA table_info(\"AudioClips\");";
                 await using var reader = await query.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
                 {
-                    if (string.Equals(
-                            reader.GetString(1),
-                            nameof(AudioClip.ContentSha256),
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        hasContentHash = true;
-                        break;
-                    }
+                    columns.Add(reader.GetString(1));
                 }
             }
 
-            if (!hasContentHash)
+            var missingColumns = new (string Name, string Sql)[]
+            {
+                (
+                    nameof(AudioClip.ContentSha256),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"ContentSha256\" TEXT NULL;"),
+                (
+                    nameof(AudioClip.LoopPlayback),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"LoopPlayback\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.ExclusivePlayback),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"ExclusivePlayback\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.FadeInMilliseconds),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeInMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.FadeOutMilliseconds),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeOutMilliseconds\" INTEGER NOT NULL DEFAULT 0;")
+            };
+
+            foreach (var missingColumn in missingColumns.Where(item => !columns.Contains(item.Name)))
             {
                 await using var alter = connection.CreateCommand();
-                alter.CommandText =
-                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"ContentSha256\" TEXT NULL;";
+                alter.CommandText = missingColumn.Sql;
                 await alter.ExecuteNonQueryAsync(cancellationToken);
             }
 

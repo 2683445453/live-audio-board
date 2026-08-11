@@ -5,6 +5,8 @@ namespace LiveAudioBoard.App.ViewModels;
 
 public partial class AudioClipViewModel : ObservableObject
 {
+    private readonly HashSet<Guid> _activePlaybackIds = [];
+
     public AudioClipViewModel(AudioClip model)
     {
         Model = model;
@@ -22,6 +24,30 @@ public partial class AudioClipViewModel : ObservableObject
     public string DurationText => Model.DurationText;
 
     public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey) ? "未绑定" : Model.Hotkey;
+
+    public string PlaybackSettingsSummary
+    {
+        get
+        {
+            var modes = new List<string>();
+            if (Model.LoopPlayback)
+            {
+                modes.Add("循环");
+            }
+
+            if (Model.ExclusivePlayback)
+            {
+                modes.Add("独占");
+            }
+
+            if (Model.FadeInMilliseconds > 0 || Model.FadeOutMilliseconds > 0)
+            {
+                modes.Add($"淡入 {Model.FadeInMilliseconds} / 淡出 {Model.FadeOutMilliseconds} ms");
+            }
+
+            return modes.Count == 0 ? "标准混音" : string.Join(" · ", modes);
+        }
+    }
 
     public string SourceSummary
     {
@@ -64,18 +90,73 @@ public partial class AudioClipViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PlayActionText))]
     private int activePlaybackCount;
 
+    [ObservableProperty]
+    private double playbackProgressPercent;
+
+    [ObservableProperty]
+    private string playbackPositionText = string.Empty;
+
+    public IReadOnlyCollection<Guid> ActivePlaybackIds => _activePlaybackIds;
+
     public string FavoriteGlyph => IsFavorite ? "★" : "☆";
 
     public bool IsPlaying => ActivePlaybackCount > 0;
 
     public string PlayActionText => ActivePlaybackCount > 0
-        ? $"播放中 ×{ActivePlaybackCount}"
+        ? Model.LoopPlayback
+            ? "停止循环"
+            : $"播放中 ×{ActivePlaybackCount}"
         : "播放";
 
     public void SetHotkey(string? hotkey)
     {
         Model.Hotkey = string.IsNullOrWhiteSpace(hotkey) ? null : hotkey.Trim();
         OnPropertyChanged(nameof(HotkeyText));
+    }
+
+    public void PlaybackStarted(Guid playbackId)
+    {
+        if (_activePlaybackIds.Add(playbackId))
+        {
+            ActivePlaybackCount = _activePlaybackIds.Count;
+        }
+    }
+
+    public void PlaybackStopped(Guid playbackId)
+    {
+        if (_activePlaybackIds.Remove(playbackId))
+        {
+            ActivePlaybackCount = _activePlaybackIds.Count;
+        }
+
+        if (_activePlaybackIds.Count == 0)
+        {
+            UpdatePlaybackProgress(0, Model.DurationMilliseconds);
+        }
+    }
+
+    public void UpdatePlaybackProgress(long positionMilliseconds, long durationMilliseconds)
+    {
+        PlaybackProgressPercent = durationMilliseconds <= 0
+            ? 0d
+            : Math.Clamp(positionMilliseconds * 100d / durationMilliseconds, 0d, 100d);
+        PlaybackPositionText = ActivePlaybackCount == 0
+            ? string.Empty
+            : $"{FormatDuration(positionMilliseconds)} / {FormatDuration(durationMilliseconds)}";
+    }
+
+    public void RefreshPlaybackSettings()
+    {
+        OnPropertyChanged(nameof(PlaybackSettingsSummary));
+        OnPropertyChanged(nameof(PlayActionText));
+    }
+
+    private static string FormatDuration(long milliseconds)
+    {
+        var duration = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return duration.TotalHours >= 1
+            ? duration.ToString(@"h\:mm\:ss")
+            : duration.ToString(@"m\:ss");
     }
 
     partial void OnIsFavoriteChanged(bool value)

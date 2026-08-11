@@ -17,9 +17,14 @@ public interface IAudioPlaybackService : IDisposable
 
     Guid Play(string filePath, double volume = 1d);
 
+    Guid Play(string filePath, AudioPlaybackOptions options) =>
+        Play(filePath, options.Normalize().Volume);
+
     Guid PlayRemote(Uri source, double volume = 1d);
 
     bool Stop(Guid playbackId);
 
     void StopAll();
+
+    IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress() => [];
 }
