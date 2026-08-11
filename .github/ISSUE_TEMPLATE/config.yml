@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/2683445453/live-audio-board/security/advisories/new
+    about: Report vulnerabilities without public disclosure.
+  - name: Commercial license inquiry
+    url: https://github.com/2683445453/live-audio-board/issues/new?template=feature_request.yml
+    about: Describe the intended commercial use and request separate authorization.

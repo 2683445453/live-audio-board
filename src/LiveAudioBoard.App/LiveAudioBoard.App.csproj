@@ -17,6 +17,17 @@
     <Page Include="App.xaml" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\LICENSE"
+          Link="LICENSE.txt"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="Always" />
+    <None Include="..\..\THIRD_PARTY_NOTICES.md"
+          Link="THIRD_PARTY_NOTICES.md"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -31,8 +42,6 @@
     <Product>LiveAudioBoard</Product>
     <AssemblyTitle>LiveAudioBoard</AssemblyTitle>
     <Description>Windows 直播音频面板</Description>
-    <Company>LiveAudioBoard Contributors</Company>
-    <Authors>LiveAudioBoard Contributors</Authors>
   </PropertyGroup>
 
 </Project>

@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <Authors>2683445453</Authors>
+    <Company>LiveAudioBoard</Company>
+    <Copyright>Copyright © 2026 2683445453</Copyright>
+    <RepositoryUrl>https://github.com/2683445453/live-audio-board</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>PolyForm-Noncommercial-1.0.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>
