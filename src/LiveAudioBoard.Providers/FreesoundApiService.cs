@@ -301,7 +301,7 @@ public sealed class FreesoundApiService : IFreesoundApiService
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, ProfileEndpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-            request.Headers.UserAgent.ParseAdd("LiveAudioBoard/0.21");
+            request.Headers.UserAgent.ParseAdd("LiveAudioBoard/0.22");
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {

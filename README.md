@@ -30,10 +30,11 @@
 - UI、后台任务与进程级未处理异常日志，自动轮换保留最近 20 份；
 - 全局紧急停止热键 `Ctrl+Shift+F10`；
 - 单条音频全局快捷键录入、冲突检测、总览与临时停用；
-- 站内搜索 Freesound、Jamendo、Wikimedia Commons 的开放音频；
+- 站内搜索 Freesound、Jamendo、Wikimedia Commons 和 Internet Archive 的开放音频；
 - 软件内载入 RSS 2.0、Media RSS 与 Atom Feed 的音频附件；
 - Freesound OAuth2 账户授权、原始高质量文件下载与 Access Token 自动刷新；
 - 搜索结果分页与下载前在线试听；
+- 最多 3 路并发的后台下载队列、单项取消与已结束记录清理；
 - HTTP/HTTPS 音频下载、进度、取消、Range 断点续传、许可证记录与自动导入；
 - Velopack 每用户安装包、便携包、GitHub Release 与应用内自动更新；
 - GitHub Actions 自动还原、构建、测试、自包含发布与版本标签打包；
@@ -53,11 +54,11 @@ dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ## 构建 Windows 发行包
 
 ```powershell
-./scripts/build-release.ps1 -Version 0.20.0
+./scripts/build-release.ps1 -Version 0.22.0
 ```
 
 脚本会先执行完整测试，再在 `artifacts/release-local/releases` 生成每用户 Setup、MSI、
-Velopack 更新包与便携 ZIP。推送 `v0.20.0` 形式的标签后，GitHub Actions 会重复该流程并
+Velopack 更新包与便携 ZIP。推送 `v0.22.0` 形式的标签后，GitHub Actions 会重复该流程并
 创建 GitHub Release。安装版启动后会在侧栏后台检查稳定版 Release，可下载后重启更新；
 便携版和本地开发版不会尝试覆盖自身。
 
@@ -88,13 +89,17 @@ Velopack 只替换安装目录中的应用文件，资料库和设置仍保存�
 增益和淡入淡出再次叠加。MP3/M4A 使用 Windows Media Foundation 编码组件，若系统
 组件不可用可始终改用 WAV。
 
-下载中心通过 [Openverse 官方 API](https://api.openverse.org/) 聚合开放授权音频，默认只显示 CC0、公共领域
-和 CC BY 内容；使用前仍应在“查看来源”中核对具体授权和署名要求。直链模式
+下载中心通过 [Openverse 官方 API](https://api.openverse.org/) 聚合 Freesound、Jamendo、
+Wikimedia Commons 的开放音频，并通过 Internet Archive 官方搜索与元数据接口提供明确标注
+CC0、公共领域或 CC BY 的馆藏音频。软件会排除 BY-SA、BY-NC、BY-ND 和没有明确许可的
+Internet Archive 条目；使用前仍应在“查看来源”中核对具体授权和署名要求。直链模式
 只处理可直接访问的合法音频文件地址，不解析网页、不绕过登录或 DRM，也不抓取
 流媒体平台内容。`Downloads` 只作为下载暂存区；导入成功后文件会转入内容寻址的
 `Media` 目录，完全相同的音频只保存一份。取消或网络中断时，支持 ETag 或
 Last-Modified 的来源会保留按 URL 隔离的 `.part` 续传状态；再次下载同一地址会从已完成
 字节继续。服务器忽略 Range 或内容标识已变化时会自动从头重下，避免拼接损坏文件。
+搜索结果下载会进入后台队列，最多同时传输 3 项；关闭下载中心不会中断任务。每一项都可
+单独取消，支持续传的来源会保留临时进度，稍后再次加入同一地址即可继续。
 
 “RSS / Atom”模式可直接载入播客、音效站或作者提供的公开 Feed，并在软件内试听和下载
 其中的音频附件。Feed 只负责发现公开链接，不代表自动获得使用权；每次下载前仍需查看

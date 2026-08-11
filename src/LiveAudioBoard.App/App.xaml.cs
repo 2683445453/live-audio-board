@@ -55,7 +55,11 @@ public partial class App : Application
                     new FreesoundOriginalDownloadProvider(freesoundApiService),
                     new DirectHttpDownloadProvider()
                 ]);
-            var audioSearchProvider = new OpenverseAudioSearchProvider();
+            var audioSearchProvider = new CompositeAudioSearchProvider(
+            [
+                new OpenverseAudioSearchProvider(),
+                new InternetArchiveAudioSearchProvider()
+            ]);
             var viewModel = new MainViewModel(
                 repository,
                 _playbackService,

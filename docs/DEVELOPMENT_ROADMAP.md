@@ -62,9 +62,9 @@ LiveAudioBoard/
 
 ### P2：内容来源与发布
 
-- RSS/Atom 音频附件浏览与 HTTP Range 断点续传已完成；多任务下载队列待发布阶段完善。
+- RSS/Atom 音频附件浏览、HTTP Range 断点续传与最多 3 路并发的后台下载队列。（已完成）
 - Freesound OAuth2 适配器、Windows DPAPI 凭据存储、令牌刷新与原始文件下载。（已完成）
-- Internet Archive 等授权来源；平台适配器与播放核心隔离。
+- Internet Archive 明确授权馆藏来源；平台适配器与播放核心隔离。（已完成）
 - Velopack 每用户安装、便携包和应用内自动更新；GitHub 标签触发 Windows Release。（已完成）
 
 ## 直播音频路由
@@ -110,8 +110,9 @@ SHA-256 去重、自动备份以及非破坏性起止点/循环/独占/淡入淡
 进入内容寻址媒体库。RSS/Atom 音频附件浏览与安全断点续传也已落地。.NET 10 LTS、
 GitHub Actions、Velopack 每用户安装包、便携包、可选代码签名和应用内 GitHub Release
 更新也已完成。Freesound OAuth2 浏览器授权、当前用户 DPAPI 加密凭据、Access Token 自动
-刷新、原始高质量文件下载及来源/作者/许可证入库也已落地；下一阶段完善多任务下载队列
-与更多明确授权来源。
+刷新、原始高质量文件下载及来源/作者/许可证入库也已落地。最多 3 路并发、单项取消且不
+阻塞下载中心关闭的后台队列，以及只接纳 CC0、公共领域与 CC BY 条目的 Internet Archive
+适配器也已完成。
 
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
@@ -140,5 +141,7 @@ GitHub Actions、Velopack 每用户安装包、便携包、可选代码签名和
 - [x] HTTP/HTTPS 下载、来源/许可证记录和完成后自动导入。
 - [x] RSS/Atom Feed 载入、音频附件试听下载与 ETag/Last-Modified 安全断点续传。
 - [x] Freesound OAuth2、DPAPI 加密令牌、自动刷新与原始高质量文件下载。
+- [x] 最多 3 路并发的后台下载队列、单项取消、进度与已结束记录清理。
+- [x] Internet Archive 明确授权音频搜索、元数据解析、原文件选择与自动入库。
 - [x] GitHub 远程仓库与首个可运行版本推送。
 - [x] .NET 10 LTS 迁移、GitHub Actions、Windows 安装包、便携包与应用内自动更新。

@@ -38,6 +38,28 @@ public sealed class DownloadCenterViewModelTests
     }
 
     [Fact]
+    public async Task EmptyFilteredPage_PreservesNavigationToLaterSourcePages()
+    {
+        var searchProvider = new SparseSearchProvider();
+        using var playbackService = new FakePlaybackService();
+        using var viewModel = CreateViewModel(searchProvider, playbackService);
+        viewModel.SearchQuery = "beep";
+
+        await viewModel.SearchCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.SearchResults);
+        Assert.Equal(1, viewModel.CurrentPage);
+        Assert.Equal(2, viewModel.TotalPages);
+        Assert.True(viewModel.NextPageCommand.CanExecute(null));
+        Assert.Contains("可继续翻页", viewModel.SearchSummary);
+
+        await viewModel.NextPageCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, viewModel.CurrentPage);
+        Assert.Equal("eligible-item", Assert.Single(viewModel.SearchResults).Id);
+    }
+
+    [Fact]
     public void TogglePreview_StartsAndStopsOnlyTheSelectedRemoteAudio()
     {
         var searchProvider = new FakeSearchProvider();
@@ -195,6 +217,28 @@ public sealed class DownloadCenterViewModelTests
                 page,
                 3));
         }
+    }
+
+    private sealed class SparseSearchProvider : IAudioSearchProvider
+    {
+        public string Id => "sparse";
+
+        public string DisplayName => "Sparse search";
+
+        public IReadOnlyList<AudioSourceSite> Sources { get; } =
+            [new("sparse", "Sparse", "Filtered source")];
+
+        public Task<AudioSearchPage> SearchAsync(
+            string query,
+            AudioSourceSite source,
+            int page = 1,
+            int pageSize = 20,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AudioSearchPage(
+                page == 1 ? [] : [CreateRemoteItem("eligible-item")],
+                40,
+                page,
+                2));
     }
 
     private sealed class FakePlaybackService : IAudioPlaybackService

@@ -14,6 +14,9 @@ namespace LiveAudioBoard.App.ViewModels;
 
 public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 {
+    private const int MaximumQueuedDownloads = 100;
+    private const int MaximumConcurrentDownloads = 3;
+
     private readonly ProviderCatalog _providerCatalog;
     private readonly IAudioSearchProvider _audioSearchProvider;
     private readonly IAudioFeedProvider _audioFeedProvider;
@@ -23,6 +26,11 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     private readonly Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
         _importDownloadedAudio;
     private CancellationTokenSource? _downloadCancellation;
+    private readonly CancellationTokenSource _downloadQueueLifetime = new();
+    private readonly SemaphoreSlim _downloadQueueGate = new(
+        MaximumConcurrentDownloads,
+        MaximumConcurrentDownloads);
+    private readonly HashSet<Task> _downloadQueueTasks = [];
     private Guid? _previewPlaybackId;
     private string _previewItemId = string.Empty;
     private string _activeSearchQuery = string.Empty;
@@ -51,6 +59,8 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<RemoteAudioItem> SearchResults { get; } = [];
+
+    public ObservableCollection<DownloadQueueItemViewModel> DownloadQueue { get; } = [];
 
     public IReadOnlyList<AudioSourceSite> Sources => _audioSearchProvider.Sources;
 
@@ -90,6 +100,24 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     public string FreesoundAuthorizationActionText => IsFreesoundAuthorized
         ? "重新打开授权页面"
         : "保存并打开授权页面";
+
+    public bool HasDownloadQueueItems => DownloadQueue.Count > 0;
+
+    public string DownloadQueueSummary
+    {
+        get
+        {
+            var waiting = DownloadQueue.Count(item =>
+                item.State == DownloadQueueState.Queued);
+            var completed = DownloadQueue.Count(item =>
+                item.State == DownloadQueueState.Completed);
+            return ActiveQueueDownloadCount > 0 || waiting > 0
+                ? $"后台下载 · {ActiveQueueDownloadCount} 路进行中 · {waiting} 项等待"
+                : completed > 0
+                    ? $"下载队列 · {completed} 项已完成"
+                    : "下载队列";
+        }
+    }
 
     [ObservableProperty]
     private bool isOpen;
@@ -199,6 +227,10 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     private string downloadedFilePath = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DownloadQueueSummary))]
+    private int activeQueueDownloadCount;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
     private string freesoundClientId = string.Empty;
 
@@ -286,7 +318,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     {
         StopPreviewCore();
         SelectedMode = DownloadCenterMode.Search;
-        StatusText = "通过 Openverse 搜索 Freesound、Jamendo 和 Wikimedia Commons。";
+        StatusText = "搜索 Freesound、Jamendo、Wikimedia Commons 与 Internet Archive。";
     }
 
     [RelayCommand]
@@ -470,15 +502,17 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
             _activeSearchQuery = SearchQuery.Trim();
             _activeSourceId = SelectedSource.Id;
-            CurrentPage = page.Items.Count == 0 ? 0 : page.Page;
-            TotalPages = page.Items.Count == 0 ? 0 : Math.Max(page.PageCount, 1);
+            CurrentPage = page.TotalResults == 0 ? 0 : page.Page;
+            TotalPages = page.TotalResults == 0 ? 0 : Math.Max(page.PageCount, 1);
             OnPropertyChanged(nameof(PaginationSummary));
             PreviousPageCommand.NotifyCanExecuteChanged();
             NextPageCommand.NotifyCanExecuteChanged();
 
-            SearchSummary = page.Items.Count == 0
+            SearchSummary = page.TotalResults == 0
                 ? "没有找到匹配结果，可以尝试英文关键词或切换来源。"
-                : $"找到 {page.TotalResults} 条开放音频，当前显示第 {CurrentPage} 页的 {page.Items.Count} 条";
+                : page.Items.Count == 0
+                    ? $"来源匹配 {page.TotalResults} 条；第 {CurrentPage} 页没有通过授权与格式检查的音频，可继续翻页。"
+                    : $"来源匹配 {page.TotalResults} 条；第 {CurrentPage} 页有 {page.Items.Count} 条通过授权与格式检查";
             StatusText = SearchSummary;
         }
         catch (Exception exception)
@@ -609,10 +643,13 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand(CanExecute = nameof(CanDownloadRemote))]
-    private Task DownloadRemoteAsync(RemoteAudioItem? item) =>
-        item is null
-            ? Task.CompletedTask
-            : DownloadCoreAsync(item.AudioUri, item);
+    private void DownloadRemote(RemoteAudioItem? item)
+    {
+        if (item is not null)
+        {
+            EnqueueDownload(item.AudioUri, item, isOriginalFile: false);
+        }
+    }
 
     private bool CanDownloadRemote(RemoteAudioItem? item) =>
         !IsDirectLinkMode && !IsFreesoundMode && !IsBusy && item is not null;
@@ -643,7 +680,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await DownloadCoreAsync(downloadUri, item);
+        EnqueueDownload(downloadUri, item, isOriginalFile: true);
     }
 
     private bool CanDownloadFreesoundOriginal(RemoteAudioItem? item) =>
@@ -651,6 +688,182 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         !IsBusy &&
         item is not null &&
         item.SourceName.Equals("freesound", StringComparison.OrdinalIgnoreCase);
+
+    private void EnqueueDownload(
+        Uri source,
+        RemoteAudioItem remoteItem,
+        bool isOriginalFile)
+    {
+        StopPreviewCore();
+        var provider = _providerCatalog.FindProvider(source);
+        if (provider is null)
+        {
+            LastAttemptFailed = true;
+            StatusText = "该音频地址没有可用的下载提供器。";
+            return;
+        }
+
+        var existing = DownloadQueue.FirstOrDefault(item =>
+            !item.IsFinished &&
+            string.Equals(item.QueueKey, source.AbsoluteUri, StringComparison.Ordinal));
+        if (existing is not null)
+        {
+            StatusText = $"「{existing.Title}」已在下载队列中。";
+            return;
+        }
+
+        if (DownloadQueue.Count >= MaximumQueuedDownloads)
+        {
+            ClearFinishedDownloads();
+            if (DownloadQueue.Count >= MaximumQueuedDownloads)
+            {
+                StatusText = $"下载队列最多保留 {MaximumQueuedDownloads} 项，请先清理已完成记录。";
+                return;
+            }
+        }
+
+        var queueItem = new DownloadQueueItemViewModel(
+            source,
+            remoteItem,
+            provider,
+            _downloadQueueLifetime.Token,
+            isOriginalFile);
+        DownloadQueue.Insert(0, queueItem);
+        RefreshDownloadQueuePresentation();
+        StatusText = isOriginalFile
+            ? $"已将「{remoteItem.Title}」原文件加入后台队列"
+            : $"已将「{remoteItem.Title}」加入后台下载队列";
+
+        var task = ProcessDownloadQueueItemAsync(queueItem);
+        lock (_downloadQueueTasks)
+        {
+            _downloadQueueTasks.Add(task);
+        }
+
+        _ = task.ContinueWith(
+            completedTask =>
+            {
+                lock (_downloadQueueTasks)
+                {
+                    _downloadQueueTasks.Remove(completedTask);
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private async Task ProcessDownloadQueueItemAsync(DownloadQueueItemViewModel queueItem)
+    {
+        var enteredGate = false;
+        try
+        {
+            queueItem.StatusText = "等待可用下载通道";
+            await _downloadQueueGate.WaitAsync(queueItem.Cancellation.Token);
+            enteredGate = true;
+            ActiveQueueDownloadCount++;
+            queueItem.State = DownloadQueueState.Downloading;
+            queueItem.StatusText = $"正在通过 {queueItem.Provider.DisplayName} 下载";
+            RefreshDownloadQueuePresentation();
+
+            var progress = new Progress<double>(value =>
+            {
+                queueItem.ProgressPercent = Math.Round(
+                    Math.Clamp(value, 0d, 1d) * 100d,
+                    1);
+                queueItem.StatusText = queueItem.ProgressPercent > 0
+                    ? $"下载中 · {queueItem.ProgressPercent:0.#}%"
+                    : "正在连接下载源";
+            });
+            var result = await queueItem.Provider.DownloadAsync(
+                queueItem.Source,
+                _destinationDirectory,
+                progress,
+                queueItem.Cancellation.Token);
+            result = result with
+            {
+                Source = queueItem.RemoteItem.LandingPageUri ?? result.Source,
+                Author = queueItem.RemoteItem.CreatorDisplay,
+                License = queueItem.RemoteItem.LicenseDisplay,
+                Title = queueItem.RemoteItem.Title,
+                ProviderId = queueItem.RemoteItem.SourceName,
+                Attribution = queueItem.RemoteItem.Attribution
+            };
+            queueItem.DownloadedFilePath = result.FilePath;
+            queueItem.ProgressPercent = 100;
+
+            try
+            {
+                var clip = await _importDownloadedAudio(
+                    result,
+                    queueItem.Provider,
+                    CancellationToken.None);
+                queueItem.DownloadedFilePath = clip.FilePath;
+                queueItem.State = DownloadQueueState.Completed;
+                queueItem.StatusText = $"已加入资料库「{clip.Title}」";
+                DownloadedFilePath = clip.FilePath;
+                StatusText = queueItem.StatusText;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                queueItem.State = DownloadQueueState.Failed;
+                queueItem.StatusText = $"文件已下载，导入失败：{exception.Message}";
+                DownloadedFilePath = result.FilePath;
+                StatusText = queueItem.StatusText;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            queueItem.State = DownloadQueueState.Cancelled;
+            queueItem.StatusText = "已取消；支持续传的来源保留临时进度";
+        }
+        catch (FreesoundAuthorizationRequiredException exception)
+        {
+            queueItem.State = DownloadQueueState.Failed;
+            queueItem.StatusText = exception.Message;
+            IsFreesoundAuthorized = false;
+            FreesoundConnectionStatus = exception.Message;
+            StatusText = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            queueItem.State = DownloadQueueState.Failed;
+            queueItem.StatusText = $"下载失败：{exception.Message}";
+            StatusText = queueItem.StatusText;
+        }
+        finally
+        {
+            if (enteredGate)
+            {
+                ActiveQueueDownloadCount = Math.Max(0, ActiveQueueDownloadCount - 1);
+                _downloadQueueGate.Release();
+            }
+
+            RefreshDownloadQueuePresentation();
+        }
+    }
+
+    [RelayCommand]
+    private void CancelQueuedDownload(DownloadQueueItemViewModel? item) => item?.Cancel();
+
+    [RelayCommand]
+    private void ClearFinishedDownloads()
+    {
+        var finishedItems = DownloadQueue.Where(item => item.IsFinished).ToArray();
+        foreach (var item in finishedItems)
+        {
+            DownloadQueue.Remove(item);
+            item.Dispose();
+        }
+
+        RefreshDownloadQueuePresentation();
+    }
+
+    private void RefreshDownloadQueuePresentation()
+    {
+        OnPropertyChanged(nameof(HasDownloadQueueItems));
+        OnPropertyChanged(nameof(DownloadQueueSummary));
+    }
 
     [RelayCommand(CanExecute = nameof(CanDownloadDirect))]
     private async Task DownloadDirectAsync()
@@ -851,8 +1064,14 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         _downloadCancellation?.Cancel();
         _downloadCancellation?.Dispose();
         _downloadCancellation = null;
+        _downloadQueueLifetime.Cancel();
+        foreach (var item in DownloadQueue)
+        {
+            item.Cancel();
+        }
         StopPreviewCore();
         _playbackService.StateChanged -= OnPlaybackStateChanged;
+        _downloadQueueLifetime.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
     }
