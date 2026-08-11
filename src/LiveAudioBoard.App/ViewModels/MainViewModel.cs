@@ -25,8 +25,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioFilePicker _filePicker;
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
+    private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
     private readonly DispatcherTimer _playbackProgressTimer;
     private AppSettings _settings = new();
+    private CancellationTokenSource? _loudnessAnalysisCancellation;
     private Guid? _primaryPlaybackId;
     private bool _suppressDeviceSelection;
     private bool _disposed;
@@ -40,6 +42,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAudioFilePicker filePicker,
         IAppSettingsStore settingsStore,
         ILibraryMediaStore mediaStore,
+        IAudioLoudnessAnalyzer loudnessAnalyzer,
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider)
     {
@@ -49,6 +52,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _filePicker = filePicker;
         _settingsStore = settingsStore;
         _mediaStore = mediaStore;
+        _loudnessAnalyzer = loudnessAnalyzer;
 
         _playbackProgressTimer = new DispatcherTimer
         {
@@ -120,6 +124,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string PlaybackExclusiveDraftText => PlaybackExclusiveDraft
         ? "✓ 已开启独占"
         : "开启独占";
+
+    public string PlaybackTrimDraftSummary =>
+        $"{FormatPlaybackDuration((long)PlaybackStartDraft)} – " +
+        $"{FormatPlaybackDuration((long)PlaybackEndDraft)}";
+
+    public string PlaybackLoudnessSummary =>
+        PlaybackEditingClip?.LoudnessSummary ?? "尚未选择音频";
+
+    public string LoudnessAnalysisActionText => IsAnalyzingLoudness
+        ? "正在分析…"
+        : "分析 / 重新分析";
 
     public string OutputDeviceName =>
         SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
@@ -204,6 +219,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlaybackEditingTitle))]
     [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
     private AudioClipViewModel? playbackEditingClip;
 
     [ObservableProperty]
@@ -219,6 +235,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private int playbackFadeOutDraft;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackTrimDraftSummary))]
+    private double playbackStartDraft;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackTrimDraftSummary))]
+    private double playbackEndDraft;
+
+    [ObservableProperty]
+    private double playbackTrimMaximum = 1d;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeLoudnessCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    [NotifyPropertyChangedFor(nameof(LoudnessAnalysisActionText))]
+    private bool isAnalyzingLoudness;
 
     [ObservableProperty]
     private string playbackSettingsStatus = "设置只影响后续播放，不会修改原始音频文件。";
@@ -263,6 +296,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackExclusiveDraft = value?.Model.ExclusivePlayback ?? false;
         PlaybackFadeInDraft = NormalizeFadeDuration(value?.Model.FadeInMilliseconds ?? 0);
         PlaybackFadeOutDraft = NormalizeFadeDuration(value?.Model.FadeOutMilliseconds ?? 0);
+        PlaybackTrimMaximum = Math.Max(1d, value?.Model.DurationMilliseconds ?? 1d);
+        PlaybackStartDraft = Math.Clamp(
+            value?.Model.StartOffsetMilliseconds ?? 0,
+            0d,
+            PlaybackTrimMaximum);
+        PlaybackEndDraft = value?.Model.EndOffsetMilliseconds > 0
+            ? Math.Clamp(value.Model.EndOffsetMilliseconds, 0d, PlaybackTrimMaximum)
+            : PlaybackTrimMaximum;
+        OnPropertyChanged(nameof(PlaybackLoudnessSummary));
         PlaybackSettingsStatus = value is null
             ? "请先选择一条音频。"
             : "设置只影响后续播放，不会修改原始音频文件。";
@@ -397,7 +439,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     clip.Model.LoopPlayback,
                     clip.Model.ExclusivePlayback,
                     clip.Model.FadeInMilliseconds,
-                    clip.Model.FadeOutMilliseconds));
+                    clip.Model.FadeOutMilliseconds,
+                    clip.Model.StartOffsetMilliseconds,
+                    clip.Model.EndOffsetMilliseconds));
         }
         catch (Exception exception)
         {
@@ -423,11 +467,72 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void TogglePlaybackExclusive() =>
         PlaybackExclusiveDraft = !PlaybackExclusiveDraft;
 
+    [RelayCommand]
+    private void ResetPlaybackTrim()
+    {
+        PlaybackStartDraft = 0;
+        PlaybackEndDraft = PlaybackTrimMaximum;
+        PlaybackSettingsStatus = "播放区间已恢复为完整音频，保存后生效。";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanAnalyzeLoudness))]
+    private async Task AnalyzeLoudnessAsync()
+    {
+        if (PlaybackEditingClip is null)
+        {
+            return;
+        }
+
+        IsAnalyzingLoudness = true;
+        PlaybackSettingsStatus = "正在离线分析响度，不会播放或修改音频…";
+        _loudnessAnalysisCancellation?.Dispose();
+        _loudnessAnalysisCancellation = new CancellationTokenSource();
+        var cancellationToken = _loudnessAnalysisCancellation.Token;
+        try
+        {
+            var analysis = await _loudnessAnalyzer.AnalyzeAsync(
+                PlaybackEditingClip.FilePath,
+                cancellationToken);
+            PlaybackEditingClip.Model.IntegratedLufs = analysis.IntegratedLufs;
+            PlaybackEditingClip.Model.SamplePeakDbfs = analysis.SamplePeakDbfs;
+            PlaybackEditingClip.Model.RecommendedGainDb = analysis.RecommendedGainDb;
+            PlaybackEditingClip.Model.LoudnessAnalyzedUtc = analysis.AnalyzedUtc;
+            await _repository.UpsertAsync(PlaybackEditingClip.Model);
+            PlaybackEditingClip.RefreshLoudnessAnalysis();
+            OnPropertyChanged(nameof(PlaybackLoudnessSummary));
+            PlaybackSettingsStatus = $"分析完成：{PlaybackEditingClip.LoudnessSummary}";
+            StatusText = $"已完成「{PlaybackEditingClip.Title}」的响度分析";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            PlaybackSettingsStatus = "响度分析已取消。";
+        }
+        catch (Exception exception)
+        {
+            PlaybackSettingsStatus = $"响度分析失败：{exception.Message}";
+        }
+        finally
+        {
+            _loudnessAnalysisCancellation?.Dispose();
+            _loudnessAnalysisCancellation = null;
+            IsAnalyzingLoudness = false;
+        }
+    }
+
+    private bool CanAnalyzeLoudness() =>
+        PlaybackEditingClip is not null && !IsAnalyzingLoudness;
+
     [RelayCommand(CanExecute = nameof(CanSavePlaybackSettings))]
     private async Task SavePlaybackSettingsAsync()
     {
         if (PlaybackEditingClip is null)
         {
+            return;
+        }
+
+        if (PlaybackEndDraft - PlaybackStartDraft < 1d)
+        {
+            PlaybackSettingsStatus = "结束点必须晚于开始点。";
             return;
         }
 
@@ -440,6 +545,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackEditingClip.Model.ExclusivePlayback = PlaybackExclusiveDraft;
         PlaybackEditingClip.Model.FadeInMilliseconds = NormalizeFadeDuration(PlaybackFadeInDraft);
         PlaybackEditingClip.Model.FadeOutMilliseconds = NormalizeFadeDuration(PlaybackFadeOutDraft);
+        PlaybackEditingClip.Model.StartOffsetMilliseconds = (long)Math.Round(PlaybackStartDraft);
+        PlaybackEditingClip.Model.EndOffsetMilliseconds =
+            PlaybackEndDraft >= PlaybackTrimMaximum - 1d
+                ? 0
+                : (long)Math.Round(PlaybackEndDraft);
         await _repository.UpsertAsync(PlaybackEditingClip.Model);
         PlaybackEditingClip.RefreshPlaybackSettings();
 
@@ -447,7 +557,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = $"已保存「{PlaybackEditingClip.Title}」的播放设置";
     }
 
-    private bool CanSavePlaybackSettings() => PlaybackEditingClip is not null;
+    private bool CanSavePlaybackSettings() =>
+        PlaybackEditingClip is not null && !IsAnalyzingLoudness;
 
     private int NormalizeFadeDuration(int value) =>
         FadeDurationOptions.Contains(value) ? value : 0;
@@ -979,6 +1090,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         _playbackService.StateChanged -= OnPlaybackStateChanged;
+        _loudnessAnalysisCancellation?.Cancel();
+        _loudnessAnalysisCancellation?.Dispose();
+        _loudnessAnalysisCancellation = null;
         _playbackProgressTimer.Stop();
         _playbackProgressTimer.Tick -= OnPlaybackProgressTick;
         DownloadCenter.Dispose();

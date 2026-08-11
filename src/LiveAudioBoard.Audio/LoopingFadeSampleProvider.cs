@@ -7,6 +7,7 @@ public sealed class LoopingFadeSampleProvider : ISampleProvider
     private readonly ISampleProvider _source;
     private readonly Action _rewind;
     private readonly long _totalFrames;
+    private readonly long _totalSamples;
     private readonly long _fadeInFrames;
     private readonly long _fadeOutFrames;
     private long _samplePosition;
@@ -29,6 +30,7 @@ public sealed class LoopingFadeSampleProvider : ISampleProvider
         _totalFrames = Math.Max(
             0,
             (long)Math.Round(duration.TotalSeconds * WaveFormat.SampleRate));
+        _totalSamples = _totalFrames * Math.Max(1, WaveFormat.Channels);
         _fadeInFrames = MillisecondsToFrames(fadeInMilliseconds);
         _fadeOutFrames = MillisecondsToFrames(fadeOutMilliseconds);
     }
@@ -58,7 +60,32 @@ public sealed class LoopingFadeSampleProvider : ISampleProvider
 
         while (totalRead < count)
         {
-            var samplesRead = _source.Read(buffer, offset + totalRead, count - totalRead);
+            var currentPosition = Interlocked.Read(ref _samplePosition);
+            if (_totalSamples > 0 && currentPosition >= _totalSamples)
+            {
+                if (!Loop || rewoundWithoutReading)
+                {
+                    break;
+                }
+
+                _rewind();
+                Interlocked.Exchange(ref _samplePosition, 0);
+                rewoundWithoutReading = true;
+                continue;
+            }
+
+            var requestedSamples = count - totalRead;
+            if (_totalSamples > 0)
+            {
+                requestedSamples = (int)Math.Min(
+                    requestedSamples,
+                    _totalSamples - currentPosition);
+            }
+
+            var samplesRead = _source.Read(
+                buffer,
+                offset + totalRead,
+                requestedSamples);
             if (samplesRead == 0)
             {
                 if (!Loop || rewoundWithoutReading)

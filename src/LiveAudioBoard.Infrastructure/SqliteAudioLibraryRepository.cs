@@ -119,7 +119,25 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeInMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
                 (
                     nameof(AudioClip.FadeOutMilliseconds),
-                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeOutMilliseconds\" INTEGER NOT NULL DEFAULT 0;")
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeOutMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.StartOffsetMilliseconds),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"StartOffsetMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.EndOffsetMilliseconds),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"EndOffsetMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.IntegratedLufs),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"IntegratedLufs\" REAL NULL;"),
+                (
+                    nameof(AudioClip.SamplePeakDbfs),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"SamplePeakDbfs\" REAL NULL;"),
+                (
+                    nameof(AudioClip.RecommendedGainDb),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"RecommendedGainDb\" REAL NULL;"),
+                (
+                    nameof(AudioClip.LoudnessAnalyzedUtc),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"LoudnessAnalyzedUtc\" TEXT NULL;")
             };
 
             foreach (var missingColumn in missingColumns.Where(item => !columns.Contains(item.Name)))

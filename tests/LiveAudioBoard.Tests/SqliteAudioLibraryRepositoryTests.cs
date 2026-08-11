@@ -81,7 +81,13 @@ public sealed class SqliteAudioLibraryRepositoryTests
             LoopPlayback = true,
             ExclusivePlayback = true,
             FadeInMilliseconds = 250,
-            FadeOutMilliseconds = 500
+            FadeOutMilliseconds = 500,
+            StartOffsetMilliseconds = 1_000,
+            EndOffsetMilliseconds = 4_000,
+            IntegratedLufs = -18.2,
+            SamplePeakDbfs = -2.4,
+            RecommendedGainDb = 1.2,
+            LoudnessAnalyzedUtc = new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc)
         };
 
         try
@@ -95,6 +101,14 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Assert.True(saved.ExclusivePlayback);
             Assert.Equal(250, saved.FadeInMilliseconds);
             Assert.Equal(500, saved.FadeOutMilliseconds);
+            Assert.Equal(1_000, saved.StartOffsetMilliseconds);
+            Assert.Equal(4_000, saved.EndOffsetMilliseconds);
+            Assert.Equal(-18.2, saved.IntegratedLufs);
+            Assert.Equal(-2.4, saved.SamplePeakDbfs);
+            Assert.Equal(1.2, saved.RecommendedGainDb);
+            Assert.Equal(
+                new DateTime(2026, 8, 11, 12, 0, 0, DateTimeKind.Utc),
+                saved.LoudnessAnalyzedUtc);
 
             clip.Hotkey = null;
             await repository.UpsertAsync(clip);

@@ -14,7 +14,12 @@ public sealed class AudioClipViewModelTests
             LoopPlayback = true,
             ExclusivePlayback = true,
             FadeInMilliseconds = 250,
-            FadeOutMilliseconds = 500
+            FadeOutMilliseconds = 500,
+            StartOffsetMilliseconds = 1_000,
+            EndOffsetMilliseconds = 4_000,
+            IntegratedLufs = -17.2,
+            SamplePeakDbfs = -2.5,
+            RecommendedGainDb = 1.2
         };
         var viewModel = new AudioClipViewModel(model);
         var playbackId = Guid.NewGuid();
@@ -27,7 +32,12 @@ public sealed class AudioClipViewModelTests
         Assert.Equal("停止循环", viewModel.PlayActionText);
         Assert.Equal(50d, viewModel.PlaybackProgressPercent);
         Assert.Equal("0:01 / 0:02", viewModel.PlaybackPositionText);
-        Assert.Equal("循环 · 独占 · 淡入 250 / 淡出 500 ms", viewModel.PlaybackSettingsSummary);
+        Assert.Equal(
+            "循环 · 独占 · 淡入 250 / 淡出 500 ms · 区间 0:01–0:04",
+            viewModel.PlaybackSettingsSummary);
+        Assert.Equal(
+            "-17.2 LUFS · 峰值 -2.5 dBFS · 建议 +1.2 dB",
+            viewModel.LoudnessSummary);
 
         viewModel.PlaybackStopped(playbackId);
 

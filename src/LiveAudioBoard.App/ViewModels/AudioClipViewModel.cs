@@ -45,9 +45,22 @@ public partial class AudioClipViewModel : ObservableObject
                 modes.Add($"淡入 {Model.FadeInMilliseconds} / 淡出 {Model.FadeOutMilliseconds} ms");
             }
 
+            if (Model.StartOffsetMilliseconds > 0 || Model.EndOffsetMilliseconds > 0)
+            {
+                var end = Model.EndOffsetMilliseconds > 0
+                    ? FormatDuration(Model.EndOffsetMilliseconds)
+                    : DurationText;
+                modes.Add($"区间 {FormatDuration(Model.StartOffsetMilliseconds)}–{end}");
+            }
+
             return modes.Count == 0 ? "标准混音" : string.Join(" · ", modes);
         }
     }
+
+    public string LoudnessSummary => Model.IntegratedLufs.HasValue
+        ? $"{Model.IntegratedLufs:0.0} LUFS · 峰值 {Model.SamplePeakDbfs:0.0} dBFS · " +
+          $"建议 {Model.RecommendedGainDb:+0.0;-0.0;0.0} dB"
+        : "尚未分析响度";
 
     public string SourceSummary
     {
@@ -150,6 +163,9 @@ public partial class AudioClipViewModel : ObservableObject
         OnPropertyChanged(nameof(PlaybackSettingsSummary));
         OnPropertyChanged(nameof(PlayActionText));
     }
+
+    public void RefreshLoudnessAnalysis() =>
+        OnPropertyChanged(nameof(LoudnessSummary));
 
     private static string FormatDuration(long milliseconds)
     {

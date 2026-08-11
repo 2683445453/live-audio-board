@@ -12,7 +12,9 @@ public sealed class AudioPlaybackOptionsTests
             Loop: true,
             Exclusive: true,
             FadeInMilliseconds: -20,
-            FadeOutMilliseconds: 20_000);
+            FadeOutMilliseconds: 20_000,
+            StartOffsetMilliseconds: -200,
+            EndOffsetMilliseconds: -1);
 
         var normalized = options.Normalize();
 
@@ -21,5 +23,7 @@ public sealed class AudioPlaybackOptionsTests
         Assert.True(normalized.Exclusive);
         Assert.Equal(0, normalized.FadeInMilliseconds);
         Assert.Equal(10_000, normalized.FadeOutMilliseconds);
+        Assert.Equal(0, normalized.StartOffsetMilliseconds);
+        Assert.Equal(0, normalized.EndOffsetMilliseconds);
     }
 }

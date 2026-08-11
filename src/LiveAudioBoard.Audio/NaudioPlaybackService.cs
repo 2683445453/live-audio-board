@@ -174,13 +174,34 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         {
             var createdSource = sourceFactory();
             reader = createdSource.Reader;
+            var totalDurationMilliseconds = Math.Max(
+                0,
+                (long)Math.Round(reader.TotalTime.TotalMilliseconds));
+            var startOffsetMilliseconds = Math.Clamp(
+                options.StartOffsetMilliseconds,
+                0,
+                totalDurationMilliseconds);
+            var endOffsetMilliseconds = options.EndOffsetMilliseconds <= 0
+                ? totalDurationMilliseconds
+                : Math.Clamp(
+                    options.EndOffsetMilliseconds,
+                    0,
+                    totalDurationMilliseconds);
+            if (endOffsetMilliseconds <= startOffsetMilliseconds)
+            {
+                throw new InvalidOperationException("播放结束点必须晚于开始点。");
+            }
+
+            reader.CurrentTime = TimeSpan.FromMilliseconds(startOffsetMilliseconds);
+            var playbackDuration = TimeSpan.FromMilliseconds(
+                endOffsetMilliseconds - startOffsetMilliseconds);
             var progressProvider = new LoopingFadeSampleProvider(
                 createdSource.SampleProvider,
-                reader.TotalTime,
+                playbackDuration,
                 options.Loop,
                 options.FadeInMilliseconds,
                 options.FadeOutMilliseconds,
-                () => reader.Position = 0);
+                () => reader.CurrentTime = TimeSpan.FromMilliseconds(startOffsetMilliseconds));
             ISampleProvider source = progressProvider;
 
             if (source.WaveFormat.Channels != MixerChannels)

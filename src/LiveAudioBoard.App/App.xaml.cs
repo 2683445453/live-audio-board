@@ -44,6 +44,7 @@ public partial class App : Application
                 new WpfAudioFilePicker(),
                 JsonAppSettingsStore.CreateDefault(),
                 Sha256LibraryMediaStore.CreateDefault(),
+                new EbuR128LoudnessAnalyzer(),
                 providerCatalog,
                 audioSearchProvider);
 

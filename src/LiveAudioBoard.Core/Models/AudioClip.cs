@@ -26,6 +26,18 @@ public sealed class AudioClip
 
     public int FadeOutMilliseconds { get; set; }
 
+    public long StartOffsetMilliseconds { get; set; }
+
+    public long EndOffsetMilliseconds { get; set; }
+
+    public double? IntegratedLufs { get; set; }
+
+    public double? SamplePeakDbfs { get; set; }
+
+    public double? RecommendedGainDb { get; set; }
+
+    public DateTime? LoudnessAnalyzedUtc { get; set; }
+
     public string? Hotkey { get; set; }
 
     public string? SourceProvider { get; set; }

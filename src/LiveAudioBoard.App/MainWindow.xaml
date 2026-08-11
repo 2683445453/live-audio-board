@@ -709,7 +709,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.6 · 播放控制" />
+                            Text="MVP 0.7 · 修剪与响度" />
             </Grid>
         </Grid>
 
@@ -1084,8 +1084,8 @@
                 </Style>
             </Grid.Style>
 
-            <Ellipse Width="700"
-                     Height="470"
+            <Ellipse Width="780"
+                     Height="560"
                      HorizontalAlignment="Center"
                      VerticalAlignment="Center"
                      Opacity="0.55"
@@ -1102,8 +1102,8 @@
                 </Ellipse.Effect>
             </Ellipse>
 
-            <Border Width="680"
-                    Height="500"
+            <Border Width="720"
+                    Height="590"
                     Padding="28"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -1125,7 +1125,7 @@
                             <TextBlock Margin="0,4,0,0"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="循环、独占与淡入淡出均为非破坏性设置" />
+                                       Text="起止点、循环与淡入淡出均为非破坏性设置" />
                         </StackPanel>
                         <Button Width="38"
                                 Height="36"
@@ -1137,7 +1137,10 @@
                                 ToolTip="关闭播放设置" />
                     </Grid>
 
-                    <StackPanel Grid.Row="1" Margin="0,24,0,18">
+                    <ScrollViewer Grid.Row="1"
+                                  Margin="0,24,0,18"
+                                  VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,8,0">
                         <TextBlock FontSize="10"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Text="当前音频" />
@@ -1226,6 +1229,89 @@
                             </Grid>
                         </Border>
 
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="播放区间" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   FontFamily="Cascadia Mono"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource ChampagneTextBrush}"
+                                                   Text="{Binding PlaybackTrimDraftSummary}" />
+                                    </StackPanel>
+                                    <Button Width="92"
+                                            Height="30"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Padding="7,3"
+                                            Command="{Binding ResetPlaybackTrimCommand}"
+                                            Content="恢复完整" />
+                                </Grid>
+
+                                <TextBlock Margin="0,14,0,3"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="开始点" />
+                                <Slider Style="{StaticResource GlassSliderStyle}"
+                                        Minimum="0"
+                                        Maximum="{Binding PlaybackTrimMaximum}"
+                                        SmallChange="100"
+                                        LargeChange="1000"
+                                        Value="{Binding PlaybackStartDraft, Mode=TwoWay}" />
+
+                                <TextBlock Margin="0,8,0,3"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="结束点" />
+                                <Slider Style="{StaticResource GlassSliderStyle}"
+                                        Minimum="0"
+                                        Maximum="{Binding PlaybackTrimMaximum}"
+                                        SmallChange="100"
+                                        LargeChange="1000"
+                                        Value="{Binding PlaybackEndDraft, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <StackPanel Margin="0,0,150,0">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="直播响度分析" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="10"
+                                               LineHeight="16"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding PlaybackLoudnessSummary}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="分析整段文件；目标 -16 LUFS，峰值余量保留到 -1 dBFS" />
+                                </StackPanel>
+                                <Button Width="132"
+                                        Height="36"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding AnalyzeLoudnessCommand}"
+                                        Content="{Binding LoudnessAnalysisActionText}" />
+                            </Grid>
+                        </Border>
+
                         <TextBlock Margin="2,14,0,0"
                                    FontSize="10"
                                    LineHeight="16"
@@ -1233,13 +1319,14 @@
                                    Text="{Binding PlaybackSettingsStatus}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
+                    </ScrollViewer>
 
                     <Grid Grid.Row="2">
                         <TextBlock Margin="0,0,220,0"
                                    VerticalAlignment="Center"
                                    FontSize="9"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   Text="淡出在自然结束或每次循环边界生效；全局急停仍会立即停止。" />
+                                   Text="区间设置精确到毫秒；全局急停仍会立即停止。" />
                         <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                             <Button Width="110"
                                     Style="{StaticResource AccentButtonStyle}"

@@ -47,6 +47,30 @@ public sealed class LoopingFadeSampleProviderTests
         Assert.Equal(300, provider.DurationMilliseconds);
     }
 
+    [Fact]
+    public void Read_StopsAndLoopsAtConfiguredRegionBoundary()
+    {
+        var source = new RewindableBufferSampleProvider(
+            10,
+            1,
+            [0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f]);
+        source.Seek(2);
+        var provider = new LoopingFadeSampleProvider(
+            source,
+            TimeSpan.FromMilliseconds(300),
+            loop: true,
+            fadeInMilliseconds: 0,
+            fadeOutMilliseconds: 0,
+            () => source.Seek(2));
+        var output = new float[8];
+
+        var samplesRead = provider.Read(output, 0, output.Length);
+
+        Assert.Equal(8, samplesRead);
+        Assert.Equal([2f, 3f, 4f, 2f, 3f, 4f, 2f, 3f], output);
+        Assert.Equal(200, provider.PositionMilliseconds);
+    }
+
     private sealed class RewindableBufferSampleProvider(
         int sampleRate,
         int channels,
@@ -68,5 +92,7 @@ public sealed class LoopingFadeSampleProviderTests
         }
 
         public void Rewind() => _position = 0;
+
+        public void Seek(int samplePosition) => _position = samplePosition;
     }
 }
