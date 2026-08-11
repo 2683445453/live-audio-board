@@ -93,7 +93,7 @@ public sealed class DirectHttpDownloadProviderTests
     }
 
     [Fact]
-    public async Task DownloadAsync_WhenCancelled_RemovesPartialFile()
+    public async Task DownloadAsync_WhenCancelled_RetainsResumeState()
     {
         using var cancellation = new CancellationTokenSource();
         await using var sourceStream = new CancelAfterFirstReadStream(
@@ -116,11 +116,78 @@ public sealed class DirectHttpDownloadProviderTests
                     new Uri("https://example.test/cancel.wav"),
                     testDirectory,
                     cancellationToken: cancellation.Token));
-            Assert.Empty(Directory.EnumerateFiles(testDirectory));
+            Assert.Single(Directory.EnumerateFiles(testDirectory, "*.part"));
+            Assert.Single(Directory.EnumerateFiles(testDirectory, "*.part.json"));
         }
         finally
         {
             DeleteTestDirectory(testDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_RetryUsesRangeAndCompletesRetainedPartialFile()
+    {
+        var payload = Enumerable.Range(0, 256).Select(value => (byte)value).ToArray();
+        using var firstCancellation = new CancellationTokenSource();
+        var handler = new ResumableHandler((request, call) =>
+        {
+            if (call == 1)
+            {
+                var content = new StreamContent(new InterruptOnSecondReadStream(
+                    payload,
+                    firstCancellation,
+                    firstReadSize: 64));
+                content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+                content.Headers.ContentLength = payload.Length;
+                var response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = content
+                };
+                response.Headers.ETag = new EntityTagHeaderValue("\"audio-v1\"");
+                return response;
+            }
+
+            Assert.NotNull(request.Headers.Range);
+            Assert.Equal(64, request.Headers.Range!.Ranges.Single().From);
+            Assert.Equal("\"audio-v1\"", request.Headers.IfRange?.EntityTag?.Tag);
+            var remainder = new ByteArrayContent(payload[64..]);
+            remainder.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+            remainder.Headers.ContentRange = new ContentRangeHeaderValue(
+                64,
+                payload.Length - 1,
+                payload.Length);
+            var resumed = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = remainder
+            };
+            resumed.Headers.ETag = new EntityTagHeaderValue("\"audio-v1\"");
+            return resumed;
+        });
+        using var client = new HttpClient(handler);
+        var provider = new DirectHttpDownloadProvider(client);
+        var directory = CreateTestDirectory();
+
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                provider.DownloadAsync(
+                    new Uri("https://example.test/resume.wav"),
+                    directory,
+                    cancellationToken: firstCancellation.Token));
+
+            var result = await provider.DownloadAsync(
+                new Uri("https://example.test/resume.wav"),
+                directory);
+
+            Assert.Equal(2, handler.CallCount);
+            Assert.Equal(payload, await File.ReadAllBytesAsync(result.FilePath));
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.part"));
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.part.json"));
+        }
+        finally
+        {
+            DeleteTestDirectory(directory);
         }
     }
 
@@ -194,6 +261,63 @@ public sealed class DirectHttpDownloadProviderTests
             }
 
             return bytesRead;
+        }
+    }
+
+    private sealed class ResumableHandler(
+        Func<HttpRequestMessage, int, HttpResponseMessage> createResponse) : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(createResponse(request, CallCount));
+        }
+    }
+
+    private sealed class InterruptOnSecondReadStream(
+        byte[] bytes,
+        CancellationTokenSource cancellation,
+        int firstReadSize) : MemoryStream(bytes)
+    {
+        private int _readCount;
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            _readCount++;
+            if (_readCount > 1)
+            {
+                cancellation.Cancel();
+                return ValueTask.FromCanceled<int>(cancellationToken);
+            }
+
+            var count = Math.Min(Math.Min(buffer.Length, firstReadSize), (int)(Length - Position));
+            return ValueTask.FromResult(base.Read(buffer.Span[..count]));
+        }
+
+        public override Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            _readCount++;
+            if (_readCount > 1)
+            {
+                cancellation.Cancel();
+                return Task.FromCanceled<int>(cancellationToken);
+            }
+
+            return base.ReadAsync(
+                buffer,
+                offset,
+                Math.Min(count, firstReadSize),
+                cancellationToken);
         }
     }
 }

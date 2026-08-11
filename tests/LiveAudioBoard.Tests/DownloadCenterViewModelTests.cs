@@ -59,15 +59,47 @@ public sealed class DownloadCenterViewModelTests
         Assert.Equal(1, playbackService.StopCallCount);
     }
 
+    [Fact]
+    public async Task RssMode_LoadsFeedItemsIntoSharedResults()
+    {
+        var searchProvider = new FakeSearchProvider();
+        var feedProvider = new FakeFeedProvider([CreateRemoteItem("feed-item")]);
+        using var playbackService = new FakePlaybackService();
+        using var viewModel = CreateViewModel(searchProvider, playbackService, feedProvider);
+
+        viewModel.ShowRssModeCommand.Execute(null);
+        viewModel.FeedUrlText = "https://example.test/feed.xml";
+        await viewModel.LoadFeedCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsRssMode);
+        Assert.Equal("feed-item", Assert.Single(viewModel.SearchResults).Id);
+        Assert.Contains("已载入", viewModel.SearchSummary);
+    }
+
     private static DownloadCenterViewModel CreateViewModel(
         IAudioSearchProvider searchProvider,
-        IAudioPlaybackService playbackService) =>
+        IAudioPlaybackService playbackService,
+        IAudioFeedProvider? feedProvider = null) =>
         new(
             new ProviderCatalog([]),
             searchProvider,
+            feedProvider ?? new FakeFeedProvider(),
             playbackService,
             Path.GetTempPath(),
             (_, _, _) => Task.FromResult(new AudioClip()));
+
+    private sealed class FakeFeedProvider(
+        IReadOnlyList<RemoteAudioItem>? items = null) : IAudioFeedProvider
+    {
+        public string Id => "fake-feed";
+
+        public string DisplayName => "Test feed";
+
+        public Task<AudioFeed> LoadAsync(
+            Uri source,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AudioFeed("Feed", string.Empty, source, items ?? []));
+    }
 
     private static RemoteAudioItem CreateRemoteItem(string id) =>
         new(

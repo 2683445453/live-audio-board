@@ -7,14 +7,14 @@
 *.suo
 
 # Local application data and generated media
-Library/
-Media/
-Downloads/
-Recordings/
-Renders/
-Backups/
-Releases/
-artifacts/
+/Library/
+/Media/
+/Downloads/
+/Recordings/
+/Renders/
+/Backups/
+/Releases/
+/artifacts/
 *.db
 *.db-shm
 *.db-wal

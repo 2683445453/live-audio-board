@@ -913,7 +913,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.18 · 非破坏性编辑与多格式导出" />
+                            Text="MVP 0.19 · RSS 音频源与断点续传" />
             </Grid>
         </Grid>
 
@@ -1108,7 +1108,7 @@
                             <TextBlock Margin="0,4,0,0"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="在软件内搜索 Freesound、Jamendo 与 Wikimedia Commons" />
+                                       Text="搜索开放音频、载入 RSS/Atom，或使用合法音频直链" />
                         </StackPanel>
                         <Button Width="38"
                                 Height="36"
@@ -1130,7 +1130,23 @@
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="False">
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="110"
+                                Margin="0,0,8,0"
+                                Command="{Binding DownloadCenter.ShowRssModeCommand}"
+                                Content="RSS / Atom">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
                                             <Setter Property="Background" Value="#26E4B863" />
                                             <Setter Property="BorderBrush" Value="#66E4B863" />
                                             <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
@@ -1145,7 +1161,7 @@
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsDirectLinkMode}" Value="True">
                                             <Setter Property="Background" Value="#26E4B863" />
                                             <Setter Property="BorderBrush" Value="#66E4B863" />
                                             <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
@@ -1176,6 +1192,16 @@
                         </Grid.RowDefinitions>
 
                         <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="190" />
                                 <ColumnDefinition Width="10" />
@@ -1205,14 +1231,52 @@
                                     Content="搜索" />
                         </Grid>
 
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="116" />
+                            </Grid.ColumnDefinitions>
+                            <Border Height="42"
+                                    Style="{StaticResource GlassInputBorderStyle}">
+                                <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding DownloadCenter.FeedUrlText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="例如 https://example.com/podcast/feed.xml" />
+                            </Border>
+                            <Button Grid.Column="2"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.LoadFeedCommand}"
+                                    Content="载入 Feed" />
+                        </Grid>
+
                         <Grid Grid.Row="1" Margin="2,10,2,8">
                             <TextBlock FontSize="10"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Text="{Binding DownloadCenter.SearchSummary}" />
                             <TextBlock HorizontalAlignment="Right"
                                        FontSize="10"
-                                       Foreground="{StaticResource ChampagneTextBrush}"
-                                       Text="仅显示 CC0、公共领域和 CC BY 内容" />
+                                       Foreground="{StaticResource ChampagneTextBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="仅显示 CC0、公共领域和 CC BY 内容" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
+                                                <Setter Property="Text" Value="下载前请核对 Feed 页面标注的授权" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Grid>
 
                         <ScrollViewer Grid.Row="2"
@@ -1278,6 +1342,16 @@
 
                         <Grid Grid.Row="3" Margin="0,9,0,0">
                             <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
                                 <Button Width="84"
                                         Style="{StaticResource QuietButtonStyle}"
                                         Padding="8,5"
@@ -1323,7 +1397,7 @@
                             <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsDirectLinkMode}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>

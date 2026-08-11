@@ -52,7 +52,8 @@ public partial class App : Application
                 Sha256LibraryMediaStore.CreateDefault(),
                 new EbuR128LoudnessAnalyzer(),
                 providerCatalog,
-                audioSearchProvider);
+                audioSearchProvider,
+                new RssAudioFeedProvider());
 
             await viewModel.InitializeAsync();
             if (backupResult?.Created == true)

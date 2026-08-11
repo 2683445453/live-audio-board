@@ -114,6 +114,7 @@ public partial class AudioClipViewModel : ObservableObject
                 "recording-microphone" => "麦克风录音",
                 "recording-loopback" => "系统回环录音",
                 "rendered-export" => "音频编辑导出",
+                "rss" => "RSS / Atom 音频源",
                 _ => Model.SourceProvider
             };
 

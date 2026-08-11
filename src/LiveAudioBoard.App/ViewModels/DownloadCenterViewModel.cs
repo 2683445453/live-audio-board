@@ -16,6 +16,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 {
     private readonly ProviderCatalog _providerCatalog;
     private readonly IAudioSearchProvider _audioSearchProvider;
+    private readonly IAudioFeedProvider _audioFeedProvider;
     private readonly IAudioPlaybackService _playbackService;
     private readonly string _destinationDirectory;
     private readonly Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
@@ -30,6 +31,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     public DownloadCenterViewModel(
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
+        IAudioFeedProvider audioFeedProvider,
         IAudioPlaybackService playbackService,
         string destinationDirectory,
         Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
@@ -37,6 +39,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     {
         _providerCatalog = providerCatalog;
         _audioSearchProvider = audioSearchProvider;
+        _audioFeedProvider = audioFeedProvider;
         _playbackService = playbackService;
         _destinationDirectory = Path.GetFullPath(destinationDirectory);
         _importDownloadedAudio = importDownloadedAudio;
@@ -50,7 +53,13 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     public string DestinationDirectory => _destinationDirectory;
 
-    public bool IsSearchMode => !UseDirectLink;
+    public bool IsSearchMode => SelectedMode == DownloadCenterMode.Search;
+
+    public bool IsRssMode => SelectedMode == DownloadCenterMode.RssFeed;
+
+    public bool IsDirectLinkMode => SelectedMode == DownloadCenterMode.DirectLink;
+
+    public bool UseDirectLink => IsDirectLinkMode;
 
     public bool IsBusy => IsSearching || IsDownloading;
 
@@ -77,7 +86,13 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSearchMode))]
-    private bool useDirectLink;
+    [NotifyPropertyChangedFor(nameof(IsRssMode))]
+    [NotifyPropertyChangedFor(nameof(IsDirectLinkMode))]
+    [NotifyPropertyChangedFor(nameof(UseDirectLink))]
+    [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
+    private DownloadCenterMode selectedMode = DownloadCenterMode.Search;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
@@ -112,6 +127,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsBusy))]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
@@ -127,9 +143,14 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     private string urlText = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
+    private string feedUrlText = string.Empty;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsBusy))]
     [NotifyPropertyChangedFor(nameof(PrimaryActionText))]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
@@ -187,14 +208,24 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowSearchMode()
     {
-        UseDirectLink = false;
+        StopPreviewCore();
+        SelectedMode = DownloadCenterMode.Search;
         StatusText = "通过 Openverse 搜索 Freesound、Jamendo 和 Wikimedia Commons。";
+    }
+
+    [RelayCommand]
+    private void ShowRssMode()
+    {
+        StopPreviewCore();
+        SelectedMode = DownloadCenterMode.RssFeed;
+        StatusText = "粘贴公开 RSS 或 Atom 地址，载入其中的音频附件。";
     }
 
     [RelayCommand]
     private void ShowDirectLinkMode()
     {
-        UseDirectLink = true;
+        StopPreviewCore();
+        SelectedMode = DownloadCenterMode.DirectLink;
         StatusText = "直链模式仅支持可直接访问的 HTTP/HTTPS 音频文件。";
     }
 
@@ -214,6 +245,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         CanNavigateSearch() && CurrentPage < TotalPages;
 
     private bool CanNavigateSearch() =>
+        IsSearchMode &&
         !IsBusy &&
         CurrentPage > 0 &&
         IsSearchCriteriaCurrent();
@@ -270,7 +302,52 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     }
 
     private bool CanSearch() =>
-        !IsBusy && !string.IsNullOrWhiteSpace(SearchQuery);
+        IsSearchMode && !IsBusy && !string.IsNullOrWhiteSpace(SearchQuery);
+
+    [RelayCommand(CanExecute = nameof(CanLoadFeed))]
+    private async Task LoadFeedAsync()
+    {
+        StopPreviewCore();
+        if (!Uri.TryCreate(FeedUrlText.Trim(), UriKind.Absolute, out var source) ||
+            (source.Scheme != Uri.UriSchemeHttp && source.Scheme != Uri.UriSchemeHttps))
+        {
+            SearchSummary = "请输入完整的 HTTP 或 HTTPS RSS/Atom 地址。";
+            StatusText = SearchSummary;
+            return;
+        }
+
+        IsSearching = true;
+        SearchSummary = "正在读取音频 Feed…";
+        StatusText = $"正在通过 {_audioFeedProvider.DisplayName} 载入…";
+        try
+        {
+            var feed = await _audioFeedProvider.LoadAsync(source);
+            SearchResults.Clear();
+            foreach (var item in feed.Items)
+            {
+                SearchResults.Add(item);
+            }
+
+            CurrentPage = 0;
+            TotalPages = 0;
+            SearchSummary = feed.Items.Count == 0
+                ? $"「{feed.Title}」中没有找到可直接下载的音频附件。"
+                : $"已载入「{feed.Title}」· {feed.Items.Count} 条音频";
+            StatusText = SearchSummary;
+        }
+        catch (Exception exception)
+        {
+            SearchSummary = $"Feed 载入失败：{exception.Message}";
+            StatusText = SearchSummary;
+        }
+        finally
+        {
+            IsSearching = false;
+        }
+    }
+
+    private bool CanLoadFeed() =>
+        IsRssMode && !IsBusy && !string.IsNullOrWhiteSpace(FeedUrlText);
 
     [RelayCommand(CanExecute = nameof(CanTogglePreview))]
     private void TogglePreview(RemoteAudioItem? item)
@@ -346,7 +423,8 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
             ? Task.CompletedTask
             : DownloadCoreAsync(item.AudioUri, item);
 
-    private bool CanDownloadRemote(RemoteAudioItem? item) => !IsBusy && item is not null;
+    private bool CanDownloadRemote(RemoteAudioItem? item) =>
+        !IsDirectLinkMode && !IsBusy && item is not null;
 
     [RelayCommand(CanExecute = nameof(CanDownloadDirect))]
     private async Task DownloadDirectAsync()
@@ -362,7 +440,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     }
 
     private bool CanDownloadDirect() =>
-        !IsBusy && !string.IsNullOrWhiteSpace(UrlText);
+        IsDirectLinkMode && !IsBusy && !string.IsNullOrWhiteSpace(UrlText);
 
     private async Task DownloadCoreAsync(Uri source, RemoteAudioItem? remoteItem)
     {
@@ -438,7 +516,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             LastAttemptFailed = true;
-            StatusText = "下载已取消，临时文件已经清理。";
+            StatusText = "下载已取消；支持续传的来源会保留临时进度，重试即可继续。";
         }
         catch (Exception exception)
         {

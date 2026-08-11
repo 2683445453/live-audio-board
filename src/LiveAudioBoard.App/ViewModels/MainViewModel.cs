@@ -59,7 +59,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ILibraryMediaStore mediaStore,
         IAudioLoudnessAnalyzer loudnessAnalyzer,
         ProviderCatalog providerCatalog,
-        IAudioSearchProvider audioSearchProvider)
+        IAudioSearchProvider audioSearchProvider,
+        IAudioFeedProvider audioFeedProvider)
     {
         _repository = repository;
         _playbackService = playbackService;
@@ -92,6 +93,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DownloadCenter = new DownloadCenterViewModel(
             providerCatalog,
             audioSearchProvider,
+            audioFeedProvider,
             playbackService,
             downloadDirectory,
             ImportDownloadedAudioAsync);

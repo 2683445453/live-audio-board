@@ -1,4 +1,8 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using LiveAudioBoard.Core.Downloads;
 
 namespace LiveAudioBoard.Providers;
@@ -37,6 +41,11 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
 
     private readonly HttpClient _httpClient;
 
+    private static readonly JsonSerializerOptions ResumeSerializerOptions = new()
+    {
+        WriteIndented = true
+    };
+
     public DirectHttpDownloadProvider(HttpClient? httpClient = null)
     {
         _httpClient = httpClient ?? CreateDefaultHttpClient();
@@ -67,40 +76,80 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
         var destinationRoot = Path.GetFullPath(destinationDirectory);
         Directory.CreateDirectory(destinationRoot);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, source);
-        request.Headers.UserAgent.ParseAdd("LiveAudioBoard/0.3");
-
-        using var response = await _httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var contentLength = response.Content.Headers.ContentLength;
-        if (contentLength > MaximumDownloadBytes)
+        var (temporaryPath, metadataPath) = ResolveResumePaths(destinationRoot, source);
+        var metadata = await LoadResumeMetadataAsync(metadataPath, source, cancellationToken);
+        var existingLength = File.Exists(temporaryPath) && HasValidator(metadata)
+            ? new FileInfo(temporaryPath).Length
+            : 0;
+        if (existingLength <= 0 || existingLength > MaximumDownloadBytes)
         {
-            throw new InvalidDataException("音频文件超过 1 GB 下载上限。");
+            DeleteResumeFiles(temporaryPath, metadataPath);
+            existingLength = 0;
+            metadata = null;
         }
-
-        var fileName = ResolveFileName(source, response.Content.Headers);
-        var finalPath = CreateUniquePath(destinationRoot, fileName);
-        var temporaryPath = finalPath + ".part";
 
         try
         {
+            using var response = await SendRequestAsync(
+                source,
+                existingLength,
+                metadata,
+                cancellationToken);
+            var append = existingLength > 0 &&
+                         response.StatusCode == HttpStatusCode.PartialContent;
+            if (response.StatusCode == HttpStatusCode.PartialContent &&
+                (!append || response.Content.Headers.ContentRange?.From != existingLength))
+            {
+                throw new InvalidDataException("服务器返回了无效的续传区间，已清理临时文件。");
+            }
+
+            response.EnsureSuccessStatusCode();
+            if (!append)
+            {
+                existingLength = 0;
+            }
+
+            var contentLength = response.Content.Headers.ContentLength;
+            var expectedLength = response.Content.Headers.ContentRange?.Length ??
+                                 (contentLength.HasValue
+                                     ? existingLength + contentLength.Value
+                                     : null);
+            if (expectedLength > MaximumDownloadBytes)
+            {
+                throw new InvalidDataException("音频文件超过 1 GB 下载上限。");
+            }
+
+            var fileName = append && !string.IsNullOrWhiteSpace(metadata?.FileName)
+                ? metadata.FileName
+                : ResolveFileName(source, response.Content.Headers);
+            var finalPath = CreateUniquePath(destinationRoot, fileName);
+            var updatedMetadata = new ResumeMetadata(
+                source.AbsoluteUri,
+                response.Headers.ETag?.ToString() ?? metadata?.ETag,
+                response.Content.Headers.LastModified ?? metadata?.LastModified,
+                fileName);
+            await SaveResumeMetadataAsync(metadataPath, updatedMetadata, cancellationToken);
+
             await using (var sourceStream =
                          await response.Content.ReadAsStreamAsync(cancellationToken))
             await using (var destinationStream = new FileStream(
                              temporaryPath,
-                             FileMode.CreateNew,
+                             append ? FileMode.Open : FileMode.Create,
                              FileAccess.Write,
                              FileShare.None,
                              65_536,
                              FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
+                if (append)
+                {
+                    destinationStream.Position = existingLength;
+                }
+
                 var buffer = new byte[65_536];
-                long totalBytesRead = 0;
-                progress?.Report(0d);
+                var totalBytesRead = existingLength;
+                progress?.Report(expectedLength is > 0
+                    ? Math.Clamp((double)totalBytesRead / expectedLength.Value, 0d, 1d)
+                    : 0d);
 
                 while (true)
                 {
@@ -120,31 +169,178 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
                         buffer.AsMemory(0, bytesRead),
                         cancellationToken);
 
-                    if (contentLength is > 0)
+                    if (expectedLength is > 0)
                     {
                         progress?.Report(Math.Clamp(
-                            (double)totalBytesRead / contentLength.Value,
+                            (double)totalBytesRead / expectedLength.Value,
                             0d,
                             1d));
                     }
                 }
 
                 await destinationStream.FlushAsync(cancellationToken);
+
+                if (expectedLength is > 0 && totalBytesRead < expectedLength.Value)
+                {
+                    throw new IOException("下载连接提前结束，可重试以继续传输。");
+                }
             }
 
             File.Move(temporaryPath, finalPath);
+            TryDelete(metadataPath);
             progress?.Report(1d);
 
             return new DownloadResult(finalPath, source);
         }
+        catch (InvalidDataException)
+        {
+            DeleteResumeFiles(temporaryPath, metadataPath);
+            throw;
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendRequestAsync(
+        Uri source,
+        long existingLength,
+        ResumeMetadata? metadata,
+        CancellationToken cancellationToken)
+    {
+        var response = await SendRequestCoreAsync(
+            source,
+            existingLength,
+            metadata,
+            cancellationToken);
+        if (existingLength <= 0 ||
+            response.StatusCode != HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            return response;
+        }
+
+        response.Dispose();
+        return await SendRequestCoreAsync(source, 0, null, cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage> SendRequestCoreAsync(
+        Uri source,
+        long existingLength,
+        ResumeMetadata? metadata,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, source);
+        request.Headers.UserAgent.ParseAdd("LiveAudioBoard/0.18");
+        if (existingLength > 0)
+        {
+            request.Headers.Range = new RangeHeaderValue(existingLength, null);
+            if (!string.IsNullOrWhiteSpace(metadata?.ETag) &&
+                EntityTagHeaderValue.TryParse(metadata.ETag, out var entityTag))
+            {
+                request.Headers.IfRange = new RangeConditionHeaderValue(entityTag);
+            }
+            else if (metadata?.LastModified is { } lastModified)
+            {
+                request.Headers.IfRange = new RangeConditionHeaderValue(lastModified);
+            }
+        }
+
+        return await _httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+    }
+
+    private static (string PartialPath, string MetadataPath) ResolveResumePaths(
+        string destinationDirectory,
+        Uri source)
+    {
+        var hash = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(source.AbsoluteUri)))
+            .ToLowerInvariant()[..20];
+        var partialPath = Path.Combine(destinationDirectory, $".download-{hash}.part");
+        return (partialPath, partialPath + ".json");
+    }
+
+    private static async Task<ResumeMetadata?> LoadResumeMetadataAsync(
+        string metadataPath,
+        Uri source,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(metadataPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            await using var stream = new FileStream(
+                metadataPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var metadata = await JsonSerializer.DeserializeAsync<ResumeMetadata>(
+                stream,
+                ResumeSerializerOptions,
+                cancellationToken);
+            return string.Equals(
+                metadata?.Source,
+                source.AbsoluteUri,
+                StringComparison.Ordinal)
+                ? metadata
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task SaveResumeMetadataAsync(
+        string metadataPath,
+        ResumeMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            metadataPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            4096,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await JsonSerializer.SerializeAsync(
+            stream,
+            metadata,
+            ResumeSerializerOptions,
+            cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    private static bool HasValidator(ResumeMetadata? metadata) =>
+        metadata is not null &&
+        (!string.IsNullOrWhiteSpace(metadata.ETag) || metadata.LastModified.HasValue);
+
+    private static void DeleteResumeFiles(string temporaryPath, string metadataPath)
+    {
+        TryDelete(temporaryPath);
+        TryDelete(metadataPath);
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
         catch
         {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-
-            throw;
+            // Cleanup is best effort; a later retry can safely reuse or replace the file.
         }
     }
 
@@ -218,7 +414,7 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
     private static string CreateUniquePath(string directory, string fileName)
     {
         var candidate = Path.Combine(directory, fileName);
-        if (!File.Exists(candidate) && !File.Exists(candidate + ".part"))
+        if (!File.Exists(candidate))
         {
             return candidate;
         }
@@ -228,7 +424,7 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
         for (var suffix = 2; suffix < 10_000; suffix++)
         {
             candidate = Path.Combine(directory, $"{baseName} ({suffix}){extension}");
-            if (!File.Exists(candidate) && !File.Exists(candidate + ".part"))
+            if (!File.Exists(candidate))
             {
                 return candidate;
             }
@@ -236,4 +432,10 @@ public sealed class DirectHttpDownloadProvider : IDownloadProvider
 
         throw new IOException("无法为下载文件生成唯一名称。");
     }
+
+    private sealed record ResumeMetadata(
+        string Source,
+        string? ETag,
+        DateTimeOffset? LastModified,
+        string FileName);
 }

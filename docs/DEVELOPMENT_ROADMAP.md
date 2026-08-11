@@ -62,7 +62,7 @@ LiveAudioBoard/
 
 ### P2：内容来源与发布
 
-- RSS 下载队列与 HTTP 断点续传；Openverse 搜索、直链下载、进度、取消、重试和 `.part` 文件已完成。
+- RSS/Atom 音频附件浏览与 HTTP Range 断点续传已完成；多任务下载队列待发布阶段完善。
 - Freesound OAuth2 适配器并保存作者、来源和许可证。
 - Internet Archive 等授权来源；平台适配器与播放核心隔离。
 - Velopack 安装和自动更新；GitHub 标签触发 Windows Release。
@@ -107,7 +107,8 @@ SHA-256 去重、自动备份以及非破坏性起止点/循环/独占/淡入淡
 拖入分类与每页 8 条的宫格分页也已落地。默认麦克风/系统回环录音、最长时长、实时电平、
 48 kHz 双声道 WAV 转换、首尾静音裁剪与自动入库也已完成。当前起止点、音量、淡入淡出、
 建议增益和峰值保护现可烘焙为新的 WAV、MP3 或 M4A 音效，原文件保持不变，生成结果自动
-进入内容寻址媒体库。下一阶段进入 RSS/Freesound 高质量来源与发布自动化。
+进入内容寻址媒体库。RSS/Atom 音频附件浏览与安全断点续传也已落地；下一阶段进入
+Freesound 高质量原文件授权与发布自动化。
 
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
@@ -134,6 +135,7 @@ SHA-256 去重、自动备份以及非破坏性起止点/循环/独占/淡入淡
 - [x] Openverse 站内搜索：Freesound、Jamendo、Wikimedia Commons。
 - [x] 开放音频搜索结果分页、在线试听与单独停止试听。
 - [x] HTTP/HTTPS 下载、来源/许可证记录和完成后自动导入。
-- [ ] RSS 与 Freesound OAuth2 原始高质量文件下载。
+- [x] RSS/Atom Feed 载入、音频附件试听下载与 ETag/Last-Modified 安全断点续传。
+- [ ] Freesound OAuth2 原始高质量文件下载。
 - [x] GitHub 远程仓库与首个可运行版本推送。
 - [ ] GitHub Actions 与 Windows 安装包。
