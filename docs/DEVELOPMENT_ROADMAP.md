@@ -59,7 +59,7 @@ LiveAudioBoard/
 
 ### P2：内容来源与发布
 
-- 直链/RSS 下载队列：进度、取消、重试、断点续传和 `.part` 文件。
+- RSS 下载队列与 HTTP 断点续传；Openverse 搜索、直链下载、进度、取消、重试和 `.part` 文件已完成。
 - Freesound OAuth2 适配器并保存作者、来源和许可证。
 - Internet Archive 等授权来源；平台适配器与播放核心隔离。
 - Velopack 安装和自动更新；GitHub 标签触发 Windows Release。
@@ -96,6 +96,8 @@ LiveAudioBoard/
 - [x] 输出设备选择、刷新、偏好持久化与多音效混音。
 - [x] 全局 `Ctrl+Shift+F10` 紧急停止、冲突反馈与防重复触发。
 - [ ] 资料库复制、去重与自动备份。
-- [ ] 第三方下载提供器。
+- [x] Openverse 站内搜索：Freesound、Jamendo、Wikimedia Commons。
+- [x] HTTP/HTTPS 下载、来源/许可证记录和完成后自动导入。
+- [ ] RSS 与 Freesound OAuth2 原始高质量文件下载。
 - [x] GitHub 远程仓库与首个可运行版本推送。
 - [ ] GitHub Actions 与 Windows 安装包。

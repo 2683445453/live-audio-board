@@ -7,8 +7,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveAudioBoard.App.Services;
 using LiveAudioBoard.Core.Abstractions;
+using LiveAudioBoard.Core.Downloads;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
+using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App.ViewModels;
 
@@ -30,13 +32,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAudioPlaybackService playbackService,
         IAudioMetadataReader metadataReader,
         IAudioFilePicker filePicker,
-        IAppSettingsStore settingsStore)
+        IAppSettingsStore settingsStore,
+        ProviderCatalog providerCatalog,
+        IAudioSearchProvider audioSearchProvider)
     {
         _repository = repository;
         _playbackService = playbackService;
         _metadataReader = metadataReader;
         _filePicker = filePicker;
         _settingsStore = settingsStore;
+
+        var downloadDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LiveAudioBoard",
+            "Downloads");
+        DownloadCenter = new DownloadCenterViewModel(
+            providerCatalog,
+            audioSearchProvider,
+            downloadDirectory,
+            ImportDownloadedAudioAsync);
 
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
         ClipsView.Filter = MatchesCurrentFilter;
@@ -55,6 +69,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<AudioOutputDevice> OutputDevices { get; } = [];
 
     public ICollectionView ClipsView { get; }
+
+    public DownloadCenterViewModel DownloadCenter { get; }
 
     public bool EnableEmergencyStopHotkey => _settings.EnableEmergencyStopHotkey;
 
@@ -289,7 +305,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenDownloadCenter()
     {
-        StatusText = "下载中心接口已经预留，将在下一阶段接入直链与 Freesound";
+        DownloadCenter.Open();
+        StatusText = "下载中心已打开 · 当前支持 HTTP/HTTPS 音频直链";
     }
 
     [RelayCommand]
@@ -390,6 +407,58 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task<AudioClip> ImportDownloadedAudioAsync(
+        DownloadResult result,
+        IDownloadProvider provider,
+        CancellationToken cancellationToken)
+    {
+        var existing = Clips.FirstOrDefault(item => string.Equals(
+            item.FilePath,
+            result.FilePath,
+            StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            return existing.Model;
+        }
+
+        var metadata = _metadataReader.Read(result.FilePath);
+        var title = string.IsNullOrWhiteSpace(result.Title)
+            ? Path.GetFileNameWithoutExtension(result.FilePath)
+            : result.Title.Trim();
+        if (title.Length > 260)
+        {
+            title = title[..260];
+        }
+
+        var clip = new AudioClip
+        {
+            Title = title,
+            FilePath = Path.GetFullPath(result.FilePath),
+            Category = "下载",
+            DurationMilliseconds = metadata.DurationMilliseconds,
+            SourceProvider = result.ProviderId ?? provider.Id,
+            SourceUrl = result.Source.AbsoluteUri,
+            License = BuildLicenseNote(result)
+        };
+
+        await _repository.UpsertAsync(clip, cancellationToken);
+        Clips.Insert(0, new AudioClipViewModel(clip));
+        EnsureCategory(clip.Category);
+        ShowAll();
+        RefreshFilter();
+        StatusText = $"已下载并导入「{clip.Title}」";
+        return clip;
+    }
+
+    private static string? BuildLicenseNote(DownloadResult result)
+    {
+        var note = string.IsNullOrWhiteSpace(result.Attribution)
+            ? result.License
+            : result.Attribution;
+
+        return note is { Length: > 512 } ? note[..512] : note;
+    }
+
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs args)
     {
         Application.Current.Dispatcher.Invoke(() =>
@@ -462,6 +531,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         _playbackService.StateChanged -= OnPlaybackStateChanged;
+        DownloadCenter.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
     }

@@ -23,6 +23,30 @@ public partial class AudioClipViewModel : ObservableObject
 
     public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey) ? "未绑定" : Model.Hotkey;
 
+    public string SourceSummary
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Model.SourceProvider))
+            {
+                return "本地音频";
+            }
+
+            var provider = Model.SourceProvider.ToLowerInvariant() switch
+            {
+                "freesound" => "Freesound",
+                "jamendo" => "Jamendo",
+                "wikimedia_audio" => "Wikimedia Commons",
+                "direct-http" => "音频直链",
+                _ => Model.SourceProvider
+            };
+
+            return string.IsNullOrWhiteSpace(Model.License)
+                ? provider
+                : $"{provider}\n{Model.License}";
+        }
+    }
+
     public string CategoryGlyph => Category switch
     {
         "音乐" => "♫",

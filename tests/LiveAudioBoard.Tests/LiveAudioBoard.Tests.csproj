@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\LiveAudioBoard.Core\LiveAudioBoard.Core.csproj" />
     <ProjectReference Include="..\..\src\LiveAudioBoard.Audio\LiveAudioBoard.Audio.csproj" />
     <ProjectReference Include="..\..\src\LiveAudioBoard.Infrastructure\LiveAudioBoard.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LiveAudioBoard.Providers\LiveAudioBoard.Providers.csproj" />
   </ItemGroup>
 
 </Project>

@@ -4,6 +4,7 @@ using LiveAudioBoard.App.ViewModels;
 using LiveAudioBoard.Audio;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Infrastructure;
+using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App;
 
@@ -21,12 +22,17 @@ public partial class App : Application
             await repository.InitializeAsync();
 
             _playbackService = new NaudioPlaybackService();
+            var providerCatalog = new ProviderCatalog(
+                [new DirectHttpDownloadProvider()]);
+            var audioSearchProvider = new OpenverseAudioSearchProvider();
             var viewModel = new MainViewModel(
                 repository,
                 _playbackService,
                 new NaudioAudioMetadataReader(),
                 new WpfAudioFilePicker(),
-                JsonAppSettingsStore.CreateDefault());
+                JsonAppSettingsStore.CreateDefault(),
+                providerCatalog,
+                audioSearchProvider);
 
             await viewModel.InitializeAsync();
 

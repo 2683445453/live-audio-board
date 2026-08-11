@@ -279,12 +279,42 @@
                                        Text="{Binding ResultSummary}" />
                         </StackPanel>
 
-                        <TextBox Grid.Column="1"
-                                 Height="44"
-                                 VerticalAlignment="Center"
-                                 Style="{StaticResource GlassTextBoxStyle}"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="按标题、分类或路径搜索" />
+                        <Border Grid.Column="1"
+                                Height="44"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource GlassInputBorderStyle}">
+                            <Grid>
+                                <TextBlock Margin="14,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Segoe Fluent Icons"
+                                           FontSize="15"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="&#xE721;"
+                                           IsHitTestVisible="False" />
+                                <TextBlock Margin="42,0,12,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="搜索音频…"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=LibrarySearchTextBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBox x:Name="LibrarySearchTextBox"
+                                         Margin="32,0,0,0"
+                                         Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="按标题、分类或路径搜索" />
+                            </Grid>
+                        </Border>
 
                         <StackPanel Grid.Column="3" Orientation="Horizontal">
                             <Button Margin="0,0,8,0"
@@ -311,7 +341,8 @@
                                         <Border Width="226"
                                                 Height="162"
                                                 Margin="0,0,12,12"
-                                                Padding="18">
+                                                Padding="18"
+                                                ToolTip="{Binding SourceSummary}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource GlassCardStyle}">
                                                     <Style.Triggers>
@@ -357,9 +388,9 @@
                                                     <TextBlock Margin="0,5,0,0"
                                                                FontSize="11"
                                                                Foreground="{StaticResource TextMutedBrush}">
-                                                        <Run Text="{Binding Category}" />
+                                                        <Run Text="{Binding Category, Mode=OneWay}" />
                                                         <Run Text="  ·  " />
-                                                        <Run Text="{Binding DurationText}" />
+                                                        <Run Text="{Binding DurationText, Mode=OneWay}" />
                                                     </TextBlock>
                                                 </StackPanel>
 
@@ -628,8 +659,315 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="MVP 0.2 · 多路混音" />
+                           Text="MVP 0.3 · 开放音频库" />
             </Grid>
+        </Grid>
+
+        <!-- Open-license search and direct-download workspace. -->
+        <Grid Panel.ZIndex="100" Background="#060A13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DownloadCenter.IsOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="900"
+                     Height="560"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.5"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3D7C9CC4" />
+                        <GradientStop Offset="0.7" Color="#1633517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="86" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="880"
+                    Height="590"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="开放音频库" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="在软件内搜索 Freesound、Jamendo 与 Wikimedia Commons" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding DownloadCenter.CloseCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭下载中心" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="1"
+                                Margin="0,18,0,0"
+                                Orientation="Horizontal">
+                        <Button Width="126"
+                                Margin="0,0,8,0"
+                                Command="{Binding DownloadCenter.ShowSearchModeCommand}"
+                                Content="免费音频搜索">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="False">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="110"
+                                Command="{Binding DownloadCenter.ShowDirectLinkModeCommand}"
+                                Content="音频直链">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Search mode -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="96" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding DownloadCenter.Sources}"
+                                      SelectedItem="{Binding DownloadCenter.SelectedSource, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Border Grid.Column="2"
+                                    Height="42"
+                                    Style="{StaticResource GlassInputBorderStyle}">
+                                <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding DownloadCenter.SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="可使用中文或英文关键词；英文通常能获得更多结果" />
+                            </Border>
+                            <Button Grid.Column="4"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.SearchCommand}"
+                                    Content="搜索" />
+                        </Grid>
+
+                        <Grid Grid.Row="1" Margin="2,10,2,8">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding DownloadCenter.SearchSummary}" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       FontSize="10"
+                                       Foreground="{StaticResource ChampagneTextBrush}"
+                                       Text="仅显示 CC0、公共领域和 CC BY 内容" />
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="2"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding DownloadCenter.SearchResults}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,7"
+                                                Padding="14,11"
+                                                Background="#0FFFFFFF"
+                                                BorderBrush="#1FFFFFFF"
+                                                BorderThickness="1"
+                                                CornerRadius="14">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="76" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Text="{Binding Title}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <Run Text="{Binding CreatorDisplay, Mode=OneWay}" />
+                                                        <Run Text="  ·  " />
+                                                        <Run Text="{Binding MetadataSummary, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Style="{StaticResource QuietButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.OpenRemoteSourceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="查看来源" />
+                                                <Button Grid.Column="3"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.DownloadRemoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="下载" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- Direct URL fallback -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel VerticalAlignment="Top">
+                            <Border Padding="13,11"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <TextBlock FontSize="11"
+                                           LineHeight="18"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="请仅下载你有权使用的音频。直链模式不解析网页、不绕过登录或 DRM，也不会抓取流媒体平台内容。" />
+                            </Border>
+                            <TextBlock Margin="2,20,0,7"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="音频文件地址" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="116" />
+                                </Grid.ColumnDefinitions>
+                                <Border Height="46"
+                                        Style="{StaticResource GlassInputBorderStyle}">
+                                    <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             Text="{Binding DownloadCenter.UrlText, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="例如 https://example.com/audio.mp3" />
+                                </Border>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding DownloadCenter.DownloadDirectCommand}"
+                                        Content="{Binding DownloadCenter.PrimaryActionText}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Shared download state -->
+                    <Grid Grid.Row="3" Margin="0,14,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding DownloadCenter.StatusText}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <TextBlock Margin="0,0,12,0"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource ChampagneTextBrush}">
+                                    <Run Text="{Binding DownloadCenter.ProgressPercent, Mode=OneWay, StringFormat={}{0:0.#}}" />
+                                    <Run Text="%" />
+                                </TextBlock>
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.CancelDownloadCommand}"
+                                        Content="取消下载" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Grid.Row="1" Margin="0,9,0,0">
+                            <ProgressBar Height="5"
+                                         Margin="0,0,220,0"
+                                         Maximum="100"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Value="{Binding DownloadCenter.ProgressPercent}" />
+                            <Button Width="196"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Padding="8,5"
+                                    Command="{Binding DownloadCenter.OpenDownloadFolderCommand}"
+                                    Content="{Binding DownloadCenter.DownloadedFileName}"
+                                    ToolTip="在文件夹中显示最近下载" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </Window>
