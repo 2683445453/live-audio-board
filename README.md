@@ -1,147 +1,134 @@
-# LiveAudioBoard
+<p align="center">
+  <img src="assets/branding/app-icon.png" width="128" alt="LiveAudioBoard 图标" />
+</p>
 
-面向 Windows 直播场景的本地音频资料库与快捷播放面板。
+<h1 align="center">LiveAudioBoard</h1>
 
-当前里程碑已经包含：
+<p align="center">面向 Windows 直播场景的本地音频资料库、快捷播放面板与双总线调音工具。</p>
 
-- WPF/.NET 10 LTS 分层项目骨架；
-- 夜航玻璃拟态主界面；
-- 本地音频导入与 SQLite 持久化；
-- 文件/文件夹拖放、文件夹递归扫描与按首级子目录自动分类；
-- 每页 8 条的音效宫格、跨页稳定排序、音效卡拖放排序与拖入分类；
-- 默认麦克风与 Windows 系统回环录音，统一转换为 48 kHz 双声道 WAV；
-- 15–300 秒录音时限、实时输入电平、首尾静音自动裁剪与完成后自动入库；
-- 将当前起止点、音量、淡入淡出、建议增益和峰值保护渲染为新的 WAV/MP3/M4A 音效；
-- 编辑导出保留原文件，生成副本自动入库并按 SHA-256 去重；
-- 音频自动复制到托管媒体库，并按 SHA-256 内容去重；
-- 文件缺失检测、托管副本自动找回和带 SHA-256 校验的重新定位；
-- SQLite 每 24 小时自动备份，默认保留最近 10 份；
-- 分类、搜索、收藏筛选；
-- 基于 NAudio/WASAPI 的 48 kHz 双声道多路混音与直播/监听双总线；
-- 单曲循环、独占播放、0–2000 ms 淡入淡出与实时播放进度；
-- 毫秒级非破坏性起止点，循环严格限制在选定区间；
-- EBU R128 风格离线 LUFS 分析、样本峰值与安全建议增益；
-- 仅处理待分析音频的资料库批量响度分析、逐文件进度、失败隔离与取消；
-- 用户可选建议增益、单曲软峰值保护和 0–5000 ms 播放冷却；
-- 最终混音总线 `-1 dBFS` 峰值限幅、实时输出电平与增益衰减提示；
-- 直播输出、主播监听两套 Windows 设备选择、刷新与设置持久化；
-- 每条音效可选“直播 + 监听”“仅直播”或“仅监听”，同设备时自动避免重复叠音；
-- 输出设备热插拔监听、Windows 默认设备切换响应与失效设备自动回退；
-- UI、后台任务与进程级未处理异常日志，自动轮换保留最近 20 份；
-- 全局紧急停止热键 `Ctrl+Shift+F10`；
-- 单条音频全局快捷键录入、冲突检测、总览与临时停用；
-- 站内搜索 Freesound、Jamendo、Wikimedia Commons 和 Internet Archive 的开放音频；
-- 软件内载入 RSS 2.0、Media RSS 与 Atom Feed 的音频附件；
-- Freesound OAuth2 账户授权、原始高质量文件下载与 Access Token 自动刷新；
-- 搜索结果分页与下载前在线试听；
-- 最多 3 路并发的后台下载队列、单项取消与已结束记录清理；
-- HTTP/HTTPS 音频下载、进度、取消、Range 断点续传、许可证记录与自动导入；
-- Velopack 每用户安装包、便携包、GitHub Release 与应用内自动更新；
-- GitHub Actions 自动还原、构建、测试、自包含发布与版本标签打包；
-- xUnit 核心模型、声道转换和设置存储测试。
+<p align="center">
+  <a href="https://github.com/2683445453/live-audio-board/actions/workflows/ci.yml"><img src="https://github.com/2683445453/live-audio-board/actions/workflows/ci.yml/badge.svg?branch=main" alt="Windows CI" /></a>
+  <a href="https://github.com/2683445453/live-audio-board/releases/latest"><img src="https://img.shields.io/github/v/release/2683445453/live-audio-board?display_name=tag" alt="GitHub Release" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-2d7dff" alt="Windows 10/11" />
+  <img src="https://img.shields.io/badge/.NET-10.0-512bd4" alt=".NET 10" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-d6a84b" alt="PolyForm Noncommercial 1.0.0" /></a>
+</p>
 
-## 运行
+<p align="center">
+  简体中文 · <a href="README.en.md">English</a> ·
+  <a href="https://github.com/2683445453/live-audio-board/releases/latest">下载最新版</a> ·
+  <a href="docs/USER_GUIDE.md">使用指南</a> ·
+  <a href="CHANGELOG.md">更新记录</a>
+</p>
+
+> [!IMPORTANT]
+> 本项目允许个人和非商业使用、修改及再分发，但禁止未经授权的商业使用。它属于
+> **源码可用软件**，不是 OSI 认证的开源软件。商业直播、带货、付费服务、企业用途或
+> 转售请先阅读[商业授权说明](COMMERCIAL_LICENSE.md)。
+
+## 功能概览
+
+| 模块 | 能力 |
+| --- | --- |
+| 资料库 | 文件/文件夹导入、递归扫描、拖放分类、收藏、搜索、分页和稳定排序 |
+| 播放 | 多音效混音、循环、独占、淡入淡出、起止点、播放冷却和全局快捷键 |
+| 直播路由 | 独立“直播输出”和“主播监听”WASAPI 总线，同设备自动去重 |
+| 音量安全 | EBU R128 风格 LUFS 分析、建议增益、单曲峰值保护和 `-1 dBFS` 主总线限幅 |
+| 录制与编辑 | 麦克风/系统回环录音、静音裁剪、WAV/MP3/M4A 非破坏性编辑导出 |
+| 下载中心 | Openverse、Internet Archive、RSS/Atom、Freesound OAuth2 和合法音频直链 |
+| 下载可靠性 | 最多 3 路后台下载、单项取消、ETag/Last-Modified 断点续传和 SHA-256 去重 |
+| 数据安全 | SQLite 持久化、内容寻址媒体库、自动备份、文件找回和轮换崩溃日志 |
+| 更新发布 | .NET 10 自包含 `win-x64`、Velopack Setup/MSI/便携包和应用内更新 |
+
+完整功能与实现状态见[开发路线图](docs/DEVELOPMENT_ROADMAP.md)。
+
+## 下载与安装
+
+前往 [GitHub Releases](https://github.com/2683445453/live-audio-board/releases/latest)：
+
+- `LiveAudioBoard-win-Setup.exe`：推荐，当前用户安装并支持应用内更新；
+- `LiveAudioBoard-win.msi`：适合标准 Windows 部署流程；
+- `LiveAudioBoard-*-win-x64-portable.zip`：解压即用，不执行安装。
+
+正式包为 Windows x64 自包含应用，不需要另行安装 .NET Desktop Runtime。未使用商业代码
+签名证书的版本可能触发 Windows SmartScreen“未知发布者”提示，请从本仓库 Release 下载并
+使用同一页面提供的 `SHA256SUMS.txt` 校验文件完整性。
+
+## 快速开始
+
+1. 启动后通过“导入音频”或拖放文件/文件夹建立资料库。
+2. 在右侧分别选择“直播输出”和“主播监听”设备。
+3. 将直播输出设为 OBS 捕获的虚拟声卡，将监听输出设为耳机。
+4. 点击音效卡播放，或在播放设置中录入全局快捷键。
+5. 使用 `Ctrl+Shift+F10` 可在任何时候紧急停止全部播放。
+
+严格隔离直播与监听时，建议使用 VB-CABLE 或 VoiceMeeter，并让 OBS 捕获虚拟设备。
+“应用程序音频捕获”可能同时采集本进程的监听总线。详细配置、录音、编辑和下载流程见
+[使用指南](docs/USER_GUIDE.md)。
+
+## 开放音频来源
+
+- Openverse：聚合 Freesound、Jamendo 和 Wikimedia Commons；
+- Internet Archive：仅显示明确标注 CC0、公共领域或 CC BY 且格式可处理的条目；
+- Freesound：通过 OAuth2 下载上传者提供的原始文件；
+- RSS/Atom：读取公开 Feed 中的音频附件；
+- 直链：只接受合法、可直接访问的 HTTP/HTTPS 音频文件。
+
+软件不会解析下载网页、绕过登录或 DRM，也不会抓取流媒体平台。来源元数据只是筛选依据，
+使用者仍须核对音频作者、许可证、署名和商业使用条件。软件许可不授予任何第三方音频权利。
+
+## 本地数据与隐私
+
+运行数据默认保存在 `%LOCALAPPDATA%\LiveAudioBoard`：
+
+- `library.db`：资料库数据库；
+- `Media`、`Recordings`、`Renders`：托管音频和生成文件；
+- `Downloads`：下载与断点续传暂存；
+- `Backups`：数据库自动备份；
+- `settings.json`：播放与设备偏好；
+- `freesound.auth`：由 Windows 当前用户 DPAPI 加密的 Freesound 凭据；
+- `Logs`：本地崩溃诊断日志，默认仅保留最近 20 份。
+
+这些文件不会自动上传，也不会进入 Git 仓库。应用更新只替换安装目录中的程序文件。
+
+## 从源码运行
+
+要求 Windows 10/11 x64 与仓库 `global.json` 指定的 .NET SDK 10.0.302。
 
 ```powershell
-dotnet restore
-dotnet build LiveAudioBoard.sln
+dotnet restore LiveAudioBoard.sln
+dotnet build LiveAudioBoard.sln --configuration Release --no-restore
+dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
 dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ```
 
-仓库使用 `global.json` 固定 .NET SDK 10.0.302。正式发布为 `win-x64` 自包含应用，终端用户
-不需要另外安装 .NET Desktop Runtime。
-
-## 构建 Windows 发行包
+## 构建发行包
 
 ```powershell
+./scripts/verify-release-metadata.ps1 -Version 0.22.0
 ./scripts/build-release.ps1 -Version 0.22.0
 ```
 
-脚本会先执行完整测试，再在 `artifacts/release-local/releases` 生成每用户 Setup、MSI、
-Velopack 更新包与便携 ZIP。推送 `v0.22.0` 形式的标签后，GitHub Actions 会重复该流程并
-创建 GitHub Release。安装版启动后会在侧栏后台检查稳定版 Release，可下载后重启更新；
-便携版和本地开发版不会尝试覆盖自身。
+产物生成到 `artifacts/release-local/releases`。版本标签 `v0.22.0` 会触发 GitHub Actions，
+重新测试并创建 GitHub Release。完整步骤、签名密钥和回滚流程见
+[发布指南](docs/RELEASING.md)。
 
-代码签名是可选配置。仓库 Secrets 同时提供 `WINDOWS_SIGN_PFX_BASE64` 与
-`WINDOWS_SIGN_PFX_PASSWORD` 时，流水线会为发行文件进行 SHA-256 时间戳签名；未配置
-证书的安装包仍可生成，但 Windows SmartScreen 可能提示未知发布者。签名证书与密码不得
-提交到仓库。
+## 项目文档
 
-首次运行会在 `%LOCALAPPDATA%\LiveAudioBoard` 创建 `library.db`。新导入和下载成功的音频
-会进入 `Media`，数据库备份进入 `Backups`，播放偏好保存在同目录的 `settings.json`。
-旧版本已经记录的外部文件路径保持不变，不会在启动时擅自移动。
-用户音频、数据库、缓存与密钥不会进入 Git 仓库。
-Velopack 只替换安装目录中的应用文件，资料库和设置仍保存在 `%LOCALAPPDATA%`，更新时不会
-删除用户音频、数据库或备份。
-
-程序异常退出时会在 `%LOCALAPPDATA%\LiveAudioBoard\Logs` 写入诊断日志，并在可显示错误
-窗口时给出具体路径。日志包含异常堆栈、应用/系统/运行时版本，不会上传到网络；目录内
-默认只保留最近 20 份报告。
-
-启动时会检查资料库文件。路径失效但 `Media` 中仍有同哈希托管副本时会自动恢复；否则
-音效卡显示警示边框和“重新定位”。已有 SHA-256 的记录只接受内容完全相同的文件，避免
-同名误选；旧记录没有哈希时允许建立新的托管副本，但会清除旧响度、建议增益和裁剪区间，
-需要重新检查并分析。
-
-播放设置底部的“另存新音效”会把当前非破坏性编辑参数写入一个新副本，可选择
-48 kHz 双声道 WAV、192 kbps MP3 或 192 kbps M4A/AAC。生成过程先使用 `Renders`
-暂存目录，成功后转入 `Media`；新条目从中性播放设置开始，避免对已经写入文件的音量、
-增益和淡入淡出再次叠加。MP3/M4A 使用 Windows Media Foundation 编码组件，若系统
-组件不可用可始终改用 WAV。
-
-下载中心通过 [Openverse 官方 API](https://api.openverse.org/) 聚合 Freesound、Jamendo、
-Wikimedia Commons 的开放音频，并通过 Internet Archive 官方搜索与元数据接口提供明确标注
-CC0、公共领域或 CC BY 的馆藏音频。软件会排除 BY-SA、BY-NC、BY-ND 和没有明确许可的
-Internet Archive 条目；使用前仍应在“查看来源”中核对具体授权和署名要求。直链模式
-只处理可直接访问的合法音频文件地址，不解析网页、不绕过登录或 DRM，也不抓取
-流媒体平台内容。`Downloads` 只作为下载暂存区；导入成功后文件会转入内容寻址的
-`Media` 目录，完全相同的音频只保存一份。取消或网络中断时，支持 ETag 或
-Last-Modified 的来源会保留按 URL 隔离的 `.part` 续传状态；再次下载同一地址会从已完成
-字节继续。服务器忽略 Range 或内容标识已变化时会自动从头重下，避免拼接损坏文件。
-搜索结果下载会进入后台队列，最多同时传输 3 项；关闭下载中心不会中断任务。每一项都可
-单独取消，支持续传的来源会保留临时进度，稍后再次加入同一地址即可继续。
-
-“RSS / Atom”模式可直接载入播客、音效站或作者提供的公开 Feed，并在软件内试听和下载
-其中的音频附件。Feed 只负责发现公开链接，不代表自动获得使用权；每次下载前仍需查看
-来源页面中的许可证、署名和商业使用要求。
-
-Freesound 搜索结果右侧的“原文件”会调用官方 OAuth2 下载端点，保留上传者提供的 WAV、
-FLAC、AIFF 等原始格式，并复用直链下载器的进度、取消和安全断点续传。首次使用时：
-
-1. 在下载中心的“Freesound 授权”页点击“申请 API 凭据”，登录 Freesound 并创建应用；
-2. 选择凭据页提供的 Freesound 托管授权码显示页作为 Redirect URL；
-3. 将 Client ID 与 Client Secret 填入软件，点击“保存并打开授权页面”；
-4. 允许访问后复制页面显示的一次性授权码，粘贴回软件并完成连接。
-
-凭据、Access Token 和 Refresh Token 保存到 `%LOCALAPPDATA%\LiveAudioBoard\freesound.auth`，
-文件使用 Windows 当前用户 DPAPI 加密，不写入 `settings.json`，也不会进入 Git。Freesound
-API 凭据默认只允许非商业 API 使用；商业项目需先取得 Freesound 的许可。音频文件自身的
-Creative Commons 许可证与 API 使用条款相互独立，直播前仍须逐条核对署名和商业使用条件。
-
-在线试听固定使用“主播监听”设备，不会主动送入“直播输出”。若要可靠隔离直播与监听，
-请将“直播输出”设为 VB-CABLE、VoiceMeeter 等虚拟设备，并让 OBS 捕获该设备。OBS 的
-“应用程序音频捕获”可能同时捕获本进程的监听总线，不适合需要严格隔离的场景。
-
-音效卡右上角的齿轮可打开播放设置，并为每条音效指定“直播 + 监听”“仅直播”或
-“仅监听”。当两个总线选择同一物理设备时，“直播 + 监听”只播放一次，避免音量翻倍。
-“独占”会在播放前停止其他音效；循环音效
-再次点击播放按钮或触发同一个全局快捷键即可停止。淡出在自然结束和每次循环边界
-生效，全局紧急停止始终立即执行。
-
-播放设置中的两个区间滑块用于跳过片头、空白尾部或截取音效片段，原文件不会被
-重编码。响度分析针对整段文件，结果保存到 SQLite；建议增益以 `-16 LUFS` 为目标并
-保留 `-1 dBFS` 峰值余量。建议增益必须由用户在播放设置中主动启用；单曲软峰值
-保护默认开启，在音效进入多路混音器前约束峰值。播放冷却可阻止连按快捷键造成叠音，
-但不会拦截“停止循环”。所有音效混合后还会经过最终主总线限幅器，因此多条本身安全的
-音效同时播放时，叠加峰值也不会超过 `-1 dBFS`。底部播放器会显示主输出电平；出现
-“总线限幅”表示当前混音正在自动衰减，应考虑减少同时播放的音效或降低单曲音量。
-
-资料库左下角的“批量分析响度”会依次处理尚无完整 LUFS 数据的音频，不重复分析已有
-结果。每完成一段即写入 SQLite，因此中途取消不会丢失已经完成的结果；损坏、缺失或
-暂时无法读取的文件会计入失败并继续下一段，可在修复文件后再次执行。
-
-## 文档
-
-- [开发路线与功能建议](docs/DEVELOPMENT_ROADMAP.md)
-- [玻璃拟态界面规范原文](docs/UI_STYLE_REFERENCE.md)
+- [使用指南](docs/USER_GUIDE.md)
+- [开发路线与架构](docs/DEVELOPMENT_ROADMAP.md)
+- [发布指南](docs/RELEASING.md)
+- [更新记录](CHANGELOG.md)
+- [贡献说明](CONTRIBUTING.md)
+- [安全策略](SECURITY.md)
+- [玻璃拟态界面规范](docs/UI_STYLE_REFERENCE.md)
 - [Soundpad 功能参考与项目取舍](docs/SOUNDPAD_REFERENCE.md)
+- [第三方组件声明](THIRD_PARTY_NOTICES.md)
+
+## 许可证
+
+LiveAudioBoard 采用 [PolyForm Noncommercial License 1.0.0](LICENSE)。个人和符合条款的
+非商业用途可以使用、研究、修改与再分发；商业使用必须取得单独授权。该许可证不是 OSI
+认证的开源许可证。详见[商业授权说明](COMMERCIAL_LICENSE.md)。
+
+Required Notice: Copyright (c) 2026 2683445453.

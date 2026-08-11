@@ -48,6 +48,7 @@ foreach ($directory in @($publishDirectory, $releaseDirectory)) {
 
 Push-Location $repositoryRoot
 try {
+    & (Join-Path $PSScriptRoot 'verify-release-metadata.ps1') -Version $Version
     Invoke-Checked dotnet @('tool', 'restore')
     Invoke-Checked dotnet @('restore', $solution)
     Invoke-Checked dotnet @(
@@ -86,6 +87,25 @@ try {
 
     $portableArchive = Join-Path $releaseDirectory "LiveAudioBoard-$Version-win-x64-portable.zip"
     Compress-Archive -Path (Join-Path $publishDirectory '*') -DestinationPath $portableArchive
+    foreach ($requiredDocument in @('LICENSE.txt', 'THIRD_PARTY_NOTICES.md')) {
+        $publishedDocument = Join-Path $publishDirectory $requiredDocument
+        if (-not (Test-Path -LiteralPath $publishedDocument -PathType Leaf)) {
+            throw "Published application is missing $requiredDocument."
+        }
+    }
+
+    $checksumPath = Join-Path $releaseDirectory 'SHA256SUMS.txt'
+    $checksumLines = Get-ChildItem -LiteralPath $releaseDirectory -File |
+        Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+        Sort-Object Name |
+        ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+        }
+    [System.IO.File]::WriteAllLines(
+        $checksumPath,
+        $checksumLines,
+        [System.Text.UTF8Encoding]::new($false))
     Write-Host "Release artifacts created in $releaseDirectory"
 }
 finally {

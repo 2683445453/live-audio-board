@@ -37,11 +37,22 @@ jobs:
       - name: Restore
         run: dotnet restore LiveAudioBoard.sln
 
+      - name: Verify release metadata
+        shell: pwsh
+        run: ./scripts/verify-release-metadata.ps1
+
+      - name: Verify formatting
+        run: dotnet format LiveAudioBoard.sln --verify-no-changes --no-restore
+
       - name: Build
         run: dotnet build LiveAudioBoard.sln --configuration Release --no-restore
 
       - name: Test
         run: dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
+
+      - name: Scan NuGet vulnerabilities
+        shell: pwsh
+        run: ./scripts/check-vulnerable-packages.ps1
 
       - name: Publish smoke test
         run: >-

@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -50,6 +52,18 @@ jobs:
           }
 
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Verify tag and release metadata
+        shell: pwsh
+        run: |
+          ./scripts/verify-release-metadata.ps1 -Version $env:APP_VERSION
+          if ("${{ github.event_name }}" -eq "push") {
+            git fetch origin main
+            git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+            if ($LASTEXITCODE -ne 0) {
+              throw "Release tags must point to a commit on origin/main."
+            }
+          }
 
       - name: Test, publish and package
         shell: pwsh
