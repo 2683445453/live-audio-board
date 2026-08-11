@@ -36,8 +36,8 @@ public sealed class Sha256LibraryMediaStore : ILibraryMediaStore
         }
 
         Directory.CreateDirectory(MediaDirectory);
-        var contentHash = await ComputeSha256Async(fullSourcePath, cancellationToken);
-        var existingPath = FindExistingFile(contentHash);
+        var contentHash = await ComputeContentHashAsync(fullSourcePath, cancellationToken);
+        var existingPath = FindByContentHash(contentHash);
         if (existingPath is not null)
         {
             DeleteSourceAfterSuccessfulMove(fullSourcePath, existingPath, moveSource);
@@ -79,21 +79,19 @@ public sealed class Sha256LibraryMediaStore : ILibraryMediaStore
         }
     }
 
-    private string? FindExistingFile(string contentHash) =>
-        Directory.EnumerateFiles(MediaDirectory, $"{contentHash}.*", SearchOption.TopDirectoryOnly)
-            .FirstOrDefault(path =>
-                !path.EndsWith(".part", StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(
-                    Path.GetFileNameWithoutExtension(path),
-                    contentHash,
-                    StringComparison.OrdinalIgnoreCase));
-
-    private static async Task<string> ComputeSha256Async(
-        string path,
-        CancellationToken cancellationToken)
+    public async Task<string> ComputeContentHashAsync(
+        string filePath,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        var fullPath = Path.GetFullPath(filePath);
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException("找不到要计算哈希的音频文件。", fullPath);
+        }
+
         await using var stream = new FileStream(
-            path,
+            fullPath,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
@@ -102,6 +100,28 @@ public sealed class Sha256LibraryMediaStore : ILibraryMediaStore
         var hash = await SHA256.HashDataAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    public string? FindByContentHash(string contentSha256)
+    {
+        if (!IsSha256(contentSha256) || !Directory.Exists(MediaDirectory))
+        {
+            return null;
+        }
+
+        return Directory.EnumerateFiles(
+                MediaDirectory,
+                $"{contentSha256.ToLowerInvariant()}.*",
+                SearchOption.TopDirectoryOnly)
+            .FirstOrDefault(path =>
+                !path.EndsWith(".part", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(
+                    Path.GetFileNameWithoutExtension(path),
+                    contentSha256,
+                    StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSha256(string value) =>
+        value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
     private static async Task CopyFileAsync(
         string sourcePath,

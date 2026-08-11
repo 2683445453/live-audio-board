@@ -11,6 +11,7 @@ public sealed class AudioClipViewModelTests
         var model = new AudioClip
         {
             Title = "Rain",
+            FilePath = typeof(AudioClipViewModelTests).Assembly.Location,
             LoopPlayback = true,
             ExclusivePlayback = true,
             FadeInMilliseconds = 250,
@@ -49,6 +50,27 @@ public sealed class AudioClipViewModelTests
         Assert.Equal("播放", viewModel.PlayActionText);
         Assert.Equal(0d, viewModel.PlaybackProgressPercent);
         Assert.Equal(string.Empty, viewModel.PlaybackPositionText);
+    }
+
+    [Fact]
+    public void MediaAvailability_ChangesCardActionsAfterPathIsRestored()
+    {
+        var model = new AudioClip
+        {
+            FilePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.wav")
+        };
+        var viewModel = new AudioClipViewModel(model);
+
+        Assert.True(viewModel.IsFileMissing);
+        Assert.Equal("重新定位", viewModel.PlayActionText);
+        Assert.Equal("文件缺失 · 需要重新定位", viewModel.PlaybackSettingsSummary);
+
+        model.FilePath = typeof(AudioClipViewModelTests).Assembly.Location;
+        viewModel.RefreshMediaAvailability();
+
+        Assert.False(viewModel.IsFileMissing);
+        Assert.Equal("播放", viewModel.PlayActionText);
+        Assert.Equal("峰值保护", viewModel.PlaybackSettingsSummary);
     }
 
     [Fact]

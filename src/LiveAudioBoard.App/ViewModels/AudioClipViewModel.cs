@@ -1,3 +1,4 @@
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveAudioBoard.Core.Models;
 
@@ -12,6 +13,7 @@ public partial class AudioClipViewModel : ObservableObject
     {
         Model = model;
         isFavorite = model.IsFavorite;
+        isFileMissing = !File.Exists(model.FilePath);
     }
 
     public AudioClip Model { get; }
@@ -30,6 +32,11 @@ public partial class AudioClipViewModel : ObservableObject
     {
         get
         {
+            if (IsFileMissing)
+            {
+                return "文件缺失 · 需要重新定位";
+            }
+
             var modes = new List<string>();
             if (Model.LoopPlayback)
             {
@@ -102,6 +109,10 @@ public partial class AudioClipViewModel : ObservableObject
         }
     }
 
+    public string CardToolTip => IsFileMissing
+        ? $"文件缺失\n{FilePath}"
+        : SourceSummary;
+
     public string CategoryGlyph => Category switch
     {
         "音乐" => "♫",
@@ -113,6 +124,16 @@ public partial class AudioClipViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FavoriteGlyph))]
     private bool isFavorite;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackSettingsSummary))]
+    [NotifyPropertyChangedFor(nameof(PlayActionText))]
+    [NotifyPropertyChangedFor(nameof(CardToolTip))]
+    private bool isFileMissing;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MediaRecoveryActionText))]
+    private bool isRecoveringMedia;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPlaying))]
@@ -131,11 +152,17 @@ public partial class AudioClipViewModel : ObservableObject
 
     public bool IsPlaying => ActivePlaybackCount > 0;
 
-    public string PlayActionText => ActivePlaybackCount > 0
+    public string PlayActionText => IsFileMissing
+        ? "重新定位"
+        : ActivePlaybackCount > 0
         ? Model.LoopPlayback
             ? "停止循环"
             : $"播放中 ×{ActivePlaybackCount}"
         : "播放";
+
+    public string MediaRecoveryActionText => IsRecoveringMedia
+        ? "正在恢复…"
+        : "重新定位";
 
     public void SetHotkey(string? hotkey)
     {
@@ -182,6 +209,14 @@ public partial class AudioClipViewModel : ObservableObject
 
     public void RefreshLoudnessAnalysis() =>
         OnPropertyChanged(nameof(LoudnessSummary));
+
+    public void RefreshMediaAvailability()
+    {
+        IsFileMissing = !File.Exists(Model.FilePath);
+        OnPropertyChanged(nameof(FilePath));
+        OnPropertyChanged(nameof(DurationText));
+        OnPropertyChanged(nameof(CardToolTip));
+    }
 
     public TimeSpan GetPlaybackCooldownRemaining(DateTimeOffset now)
     {

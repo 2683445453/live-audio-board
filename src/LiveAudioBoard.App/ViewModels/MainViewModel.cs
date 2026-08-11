@@ -10,6 +10,7 @@ using LiveAudioBoard.App.Services;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Analysis;
 using LiveAudioBoard.Core.Downloads;
+using LiveAudioBoard.Core.Recovery;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Providers;
@@ -28,6 +29,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly ILibraryMediaStore _mediaStore;
     private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
     private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
+    private readonly MediaRecoveryService _mediaRecoveryService;
     private readonly DispatcherTimer _playbackProgressTimer;
     private AppSettings _settings = new();
     private CancellationTokenSource? _loudnessAnalysisCancellation;
@@ -59,6 +61,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _loudnessBatchAnalysisService = new LoudnessBatchAnalysisService(
             repository,
             loudnessAnalyzer);
+        _mediaRecoveryService = new MediaRecoveryService(
+            repository,
+            mediaStore,
+            metadataReader);
 
         _playbackProgressTimer = new DispatcherTimer
         {
@@ -332,8 +338,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settings = await _settingsStore.LoadAsync(cancellationToken);
 
         var clips = await _repository.GetAllAsync(cancellationToken);
+        var automaticallyRecovered = 0;
+        var missingFiles = 0;
         foreach (var clip in clips)
         {
+            if (!File.Exists(clip.FilePath))
+            {
+                try
+                {
+                    if (await _mediaRecoveryService.TryRestoreManagedCopyAsync(
+                            clip,
+                            cancellationToken))
+                    {
+                        automaticallyRecovered++;
+                    }
+                    else
+                    {
+                        missingFiles++;
+                    }
+                }
+                catch
+                {
+                    missingFiles++;
+                }
+            }
+
             Clips.Add(new AudioClipViewModel(clip));
             EnsureCategory(clip.Category);
         }
@@ -346,6 +375,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = clips.Count == 0
             ? "资料库已就绪，导入第一段音频吧"
             : $"资料库已就绪 · {clips.Count} 段音频";
+        if (automaticallyRecovered > 0)
+        {
+            StatusText += $" · 自动恢复 {automaticallyRecovered} 段";
+        }
+
+        if (missingFiles > 0)
+        {
+            StatusText += $" · {missingFiles} 个文件缺失";
+        }
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
@@ -499,6 +537,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             SelectedClip = clip;
+            clip.RefreshMediaAvailability();
+            if (clip.IsFileMissing)
+            {
+                RefreshFilter();
+                RefreshBatchLoudnessAvailability();
+                AnalyzeLoudnessCommand.NotifyCanExecuteChanged();
+                StatusText = $"「{clip.Title}」的文件已缺失，请点击重新定位";
+                return;
+            }
+
             if (clip.Model.LoopPlayback && clip.IsPlaying)
             {
                 foreach (var playbackId in clip.ActivePlaybackIds.ToArray())
@@ -542,11 +590,70 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private async Task RecoverMissingMediaAsync(AudioClipViewModel? clip)
+    {
+        if (clip is null)
+        {
+            return;
+        }
+
+        clip.RefreshMediaAvailability();
+        if (!clip.IsFileMissing)
+        {
+            RefreshFilter();
+            StatusText = $"「{clip.Title}」的文件仍然可用，无需恢复";
+            return;
+        }
+
+        var replacementPath = _filePicker.PickReplacementAudioFile(clip.Title);
+        if (string.IsNullOrWhiteSpace(replacementPath))
+        {
+            StatusText = "已取消重新定位";
+            return;
+        }
+
+        clip.IsRecoveringMedia = true;
+        StatusText = $"正在校验并恢复「{clip.Title}」…";
+        try
+        {
+            var result = await _mediaRecoveryService.RelinkAsync(
+                clip.Model,
+                replacementPath);
+            clip.RefreshMediaAvailability();
+            clip.RefreshPlaybackSettings();
+            clip.RefreshLoudnessAnalysis();
+            RefreshFilter();
+            RefreshBatchLoudnessAvailability();
+            AnalyzeLoudnessCommand.NotifyCanExecuteChanged();
+            StatusText = result.WasContentVerified
+                ? $"已校验并恢复「{clip.Title}」"
+                : $"已恢复「{clip.Title}」；旧记录无哈希，已重置裁剪与响度数据";
+        }
+        catch (MediaContentMismatchException exception)
+        {
+            StatusText = $"恢复失败：{exception.Message}";
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"恢复失败：{exception.Message}";
+        }
+        finally
+        {
+            clip.IsRecoveringMedia = false;
+        }
+    }
+
+    [RelayCommand]
     private void OpenPlaybackSettings(AudioClipViewModel? clip)
     {
         PlaybackEditingClip = clip ?? SelectedClip ?? Clips.FirstOrDefault();
+        PlaybackEditingClip?.RefreshMediaAvailability();
+        AnalyzeLoudnessCommand.NotifyCanExecuteChanged();
+        RefreshBatchLoudnessAvailability();
         IsPlaybackSettingsOpen = true;
-        StatusText = "播放设置已打开";
+        StatusText = PlaybackEditingClip?.IsFileMissing == true
+            ? $"「{PlaybackEditingClip.Title}」的文件已缺失，请先重新定位"
+            : "播放设置已打开";
     }
 
     [RelayCommand]
@@ -729,6 +836,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private bool CanAnalyzeLoudness() =>
         PlaybackEditingClip is not null &&
+        !PlaybackEditingClip.IsFileMissing &&
         !IsAnalyzingLoudness &&
         !IsBatchLoudnessAnalyzing;
 
@@ -784,10 +892,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         !IsBatchLoudnessAnalyzing;
 
     private static bool NeedsLoudnessAnalysis(AudioClipViewModel clip) =>
-        !clip.Model.IntegratedLufs.HasValue ||
-        !clip.Model.SamplePeakDbfs.HasValue ||
-        !clip.Model.RecommendedGainDb.HasValue ||
-        !clip.Model.LoudnessAnalyzedUtc.HasValue;
+        !clip.IsFileMissing &&
+        (!clip.Model.IntegratedLufs.HasValue ||
+         !clip.Model.SamplePeakDbfs.HasValue ||
+         !clip.Model.RecommendedGainDb.HasValue ||
+         !clip.Model.LoudnessAnalyzedUtc.HasValue);
 
     private void RefreshLoudnessPresentation(AudioClipViewModel clip)
     {
@@ -1097,8 +1206,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         ClipsView.Refresh();
         var count = ClipsView.Cast<object>().Count();
+        var missingCount = Clips.Count(clip => clip.IsFileMissing);
         HasNoResults = count == 0;
-        ResultSummary = count == 1 ? "1 段音频" : $"{count} 段音频";
+        ResultSummary = (count == 1 ? "1 段音频" : $"{count} 段音频") +
+            (missingCount > 0 ? $" · {missingCount} 个文件缺失" : string.Empty);
     }
 
     private void EnsureCategory(string category)

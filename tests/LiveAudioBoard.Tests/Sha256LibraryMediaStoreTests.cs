@@ -32,6 +32,9 @@ public sealed class Sha256LibraryMediaStoreTests
             Assert.False(File.Exists(secondSource));
             Assert.Equal(content, await File.ReadAllBytesAsync(first.FilePath));
             Assert.Single(Directory.GetFiles(mediaDirectory));
+            Assert.Equal(expectedHash, await store.ComputeContentHashAsync(firstSource));
+            Assert.Equal(first.FilePath, store.FindByContentHash(expectedHash.ToUpperInvariant()));
+            Assert.Null(store.FindByContentHash("not-a-sha256"));
         }
         finally
         {

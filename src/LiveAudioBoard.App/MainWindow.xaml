@@ -394,12 +394,16 @@
                                                 Height="192"
                                                 Margin="0,0,12,12"
                                                 Padding="18"
-                                                ToolTip="{Binding SourceSummary}">
+                                                ToolTip="{Binding CardToolTip}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource GlassCardStyle}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsPlaying}" Value="True">
                                                             <Setter Property="BorderBrush" Value="#8CE4B863" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -492,14 +496,40 @@
                                                             CommandParameter="{Binding}"
                                                             Content="{Binding HotkeyText}"
                                                             ToolTip="录入或修改全局快捷键" />
-                                                    <Button Width="82"
-                                                            Height="34"
-                                                            HorizontalAlignment="Right"
-                                                            Style="{StaticResource QuietButtonStyle}"
-                                                            Padding="8,4"
-                                                            Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="{Binding PlayActionText}" />
+                                                    <Grid Width="82"
+                                                          Height="34"
+                                                          HorizontalAlignment="Right">
+                                                        <Button Padding="8,4"
+                                                                Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding PlayActionText}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Padding="8,4"
+                                                                Foreground="{StaticResource DangerBrush}"
+                                                                Command="{Binding DataContext.RecoverMissingMediaCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding MediaRecoveryActionText}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </Grid>
                                                 </Grid>
                                             </Grid>
                                         </Border>
@@ -780,7 +810,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.10 · 批量响度分析" />
+                            Text="MVP 0.11 · 媒体恢复" />
             </Grid>
         </Grid>
 
