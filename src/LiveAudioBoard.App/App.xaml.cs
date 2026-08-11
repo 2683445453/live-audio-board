@@ -25,7 +25,8 @@ public partial class App : Application
                 repository,
                 _playbackService,
                 new NaudioAudioMetadataReader(),
-                new WpfAudioFilePicker());
+                new WpfAudioFilePicker(),
+                JsonAppSettingsStore.CreateDefault());
 
             await viewModel.InitializeAsync();
 

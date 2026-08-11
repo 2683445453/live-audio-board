@@ -1,23 +1,125 @@
 using LiveAudioBoard.Core.Abstractions;
+using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using CorePlaybackState = LiveAudioBoard.Core.Playback.PlaybackState;
 
 namespace LiveAudioBoard.Audio;
 
 public sealed class NaudioPlaybackService : IAudioPlaybackService
 {
+    private const int MixerSampleRate = 48_000;
+    private const int MixerChannels = 2;
+    private const int MaximumConcurrentVoices = 32;
+
     private readonly object _gate = new();
+    private readonly MixingSampleProvider _mixer;
+    private readonly Dictionary<ISampleProvider, PlaybackVoice> _voices = [];
     private WasapiOut? _output;
-    private AudioFileReader? _reader;
+    private MMDevice? _activeOutputDevice;
+    private string _selectedOutputDeviceId = AudioOutputDevice.FollowDefaultDeviceId;
     private bool _disposed;
+
+    public NaudioPlaybackService()
+    {
+        _mixer = new MixingSampleProvider(
+            WaveFormat.CreateIeeeFloatWaveFormat(MixerSampleRate, MixerChannels))
+        {
+            ReadFully = true
+        };
+        _mixer.MixerInputEnded += OnMixerInputEnded;
+    }
 
     public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
 
-    public string? CurrentFilePath { get; private set; }
+    public int ActivePlaybackCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _voices.Count;
+            }
+        }
+    }
 
-    public void Play(string filePath, double volume = 1d)
+    public string SelectedOutputDeviceId
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _selectedOutputDeviceId;
+            }
+        }
+    }
+
+    public IReadOnlyList<AudioOutputDevice> GetOutputDevices()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var devices = new List<AudioOutputDevice>
+        {
+            AudioOutputDevice.FollowWindowsDefault
+        };
+
+        using var enumerator = new MMDeviceEnumerator();
+        string? defaultDeviceId = null;
+
+        if (enumerator.HasDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia))
+        {
+            using var defaultDevice = enumerator.GetDefaultAudioEndpoint(
+                DataFlow.Render,
+                Role.Multimedia);
+            defaultDeviceId = defaultDevice.ID;
+        }
+
+        var endpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+        foreach (var endpoint in endpoints)
+        {
+            devices.Add(new AudioOutputDevice(
+                endpoint.ID,
+                endpoint.FriendlyName,
+                string.Equals(endpoint.ID, defaultDeviceId, StringComparison.Ordinal)));
+            endpoint.Dispose();
+        }
+
+        return devices;
+    }
+
+    public void SelectOutputDevice(string deviceId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var normalizedId = string.IsNullOrWhiteSpace(deviceId)
+            ? AudioOutputDevice.FollowDefaultDeviceId
+            : deviceId;
+
+        if (normalizedId != AudioOutputDevice.FollowDefaultDeviceId &&
+            !GetOutputDevices().Any(device => device.Id == normalizedId))
+        {
+            throw new InvalidOperationException("所选音频输出设备当前不可用。");
+        }
+
+        List<PlaybackVoice> stoppedVoices;
+        lock (_gate)
+        {
+            if (_selectedOutputDeviceId == normalizedId)
+            {
+                return;
+            }
+
+            stoppedVoices = RemoveAllVoicesNoLock();
+            DisposeOutputNoLock();
+            _selectedOutputDeviceId = normalizedId;
+        }
+
+        RaiseStoppedEvents(stoppedVoices);
+    }
+
+    public Guid Play(string filePath, double volume = 1d)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
@@ -27,64 +129,141 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
             throw new FileNotFoundException("音频文件不存在。", filePath);
         }
 
+        AudioFileReader? reader = null;
         try
         {
-            lock (_gate)
+            reader = new AudioFileReader(filePath);
+            ISampleProvider source = reader;
+
+            if (source.WaveFormat.Channels != MixerChannels)
             {
-                DisposeCurrentPlayback();
-
-                _reader = new AudioFileReader(filePath)
-                {
-                    Volume = (float)Math.Clamp(volume, 0d, 1d)
-                };
-
-                _output = new WasapiOut(AudioClientShareMode.Shared, true, 100);
-                _output.PlaybackStopped += OnPlaybackStopped;
-                _output.Init(_reader);
-                CurrentFilePath = filePath;
-                _output.Play();
+                source = new StereoSampleProvider(source);
             }
 
+            if (source.WaveFormat.SampleRate != MixerSampleRate)
+            {
+                source = new WdlResamplingSampleProvider(source, MixerSampleRate);
+            }
+
+            var mixerInput = new VolumeSampleProvider(source)
+            {
+                Volume = (float)Math.Clamp(volume, 0d, 1d)
+            };
+            var voice = new PlaybackVoice(Guid.NewGuid(), filePath, reader, mixerInput);
+
+            int activeCount;
+            lock (_gate)
+            {
+                if (_voices.Count >= MaximumConcurrentVoices)
+                {
+                    throw new InvalidOperationException(
+                        $"同时播放数量已达到上限（{MaximumConcurrentVoices} 路）。");
+                }
+
+                EnsureOutputStartedNoLock();
+                _voices.Add(mixerInput, voice);
+                _mixer.AddMixerInput(mixerInput);
+                activeCount = _voices.Count;
+            }
+
+            reader = null;
             StateChanged?.Invoke(
                 this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Playing, filePath));
+                new PlaybackStateChangedEventArgs(
+                    CorePlaybackState.Playing,
+                    voice.Id,
+                    voice.FilePath,
+                    activeCount));
+            return voice.Id;
         }
         catch (Exception exception)
         {
-            lock (_gate)
-            {
-                DisposeCurrentPlayback();
-            }
-
+            reader?.Dispose();
             StateChanged?.Invoke(
                 this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Error, filePath, exception));
+                new PlaybackStateChangedEventArgs(
+                    CorePlaybackState.Error,
+                    Guid.Empty,
+                    filePath,
+                    ActivePlaybackCount,
+                    exception));
             throw;
         }
     }
 
-    public void Stop()
+    public void StopAll()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        string? stoppedPath;
+        List<PlaybackVoice> stoppedVoices;
         lock (_gate)
         {
-            stoppedPath = CurrentFilePath;
-            DisposeCurrentPlayback();
+            stoppedVoices = RemoveAllVoicesNoLock();
         }
 
-        if (stoppedPath is not null)
-        {
-            StateChanged?.Invoke(
-                this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Stopped, stoppedPath));
-        }
+        RaiseStoppedEvents(stoppedVoices);
     }
 
-    private void OnPlaybackStopped(object? sender, StoppedEventArgs args)
+    private void EnsureOutputStartedNoLock()
     {
-        string? stoppedPath;
+        if (_output is not null)
+        {
+            return;
+        }
+
+        if (_selectedOutputDeviceId == AudioOutputDevice.FollowDefaultDeviceId)
+        {
+            _output = new WasapiOut(AudioClientShareMode.Shared, true, 100);
+        }
+        else
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            _activeOutputDevice = enumerator.GetDevice(_selectedOutputDeviceId);
+            _output = new WasapiOut(
+                _activeOutputDevice,
+                AudioClientShareMode.Shared,
+                true,
+                100);
+        }
+
+        _output.PlaybackStopped += OnOutputPlaybackStopped;
+        _output.Init(_mixer);
+        _output.Play();
+    }
+
+    private void OnMixerInputEnded(object? sender, SampleProviderEventArgs args)
+    {
+        PlaybackVoice? endedVoice;
+        int activeCount;
+
+        lock (_gate)
+        {
+            if (!_voices.Remove(args.SampleProvider, out endedVoice))
+            {
+                return;
+            }
+
+            activeCount = _voices.Count;
+        }
+
+        endedVoice.Dispose();
+        StateChanged?.Invoke(
+            this,
+            new PlaybackStateChangedEventArgs(
+                CorePlaybackState.Stopped,
+                endedVoice.Id,
+                endedVoice.FilePath,
+                activeCount));
+    }
+
+    private void OnOutputPlaybackStopped(object? sender, StoppedEventArgs args)
+    {
+        if (args.Exception is null)
+        {
+            return;
+        }
+
+        List<PlaybackVoice> failedVoices;
         lock (_gate)
         {
             if (!ReferenceEquals(sender, _output))
@@ -92,33 +271,61 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
                 return;
             }
 
-            stoppedPath = CurrentFilePath;
-            DisposeCurrentPlayback();
+            failedVoices = RemoveAllVoicesNoLock();
+            DisposeOutputNoLock();
         }
 
-        var state = args.Exception is null ? CorePlaybackState.Stopped : CorePlaybackState.Error;
-        StateChanged?.Invoke(
-            this,
-            new PlaybackStateChangedEventArgs(state, stoppedPath, args.Exception));
+        foreach (var voice in failedVoices)
+        {
+            voice.Dispose();
+            StateChanged?.Invoke(
+                this,
+                new PlaybackStateChangedEventArgs(
+                    CorePlaybackState.Error,
+                    voice.Id,
+                    voice.FilePath,
+                    0,
+                    args.Exception));
+        }
     }
 
-    private void DisposeCurrentPlayback()
+    private List<PlaybackVoice> RemoveAllVoicesNoLock()
+    {
+        var voices = _voices.Values.ToList();
+        _voices.Clear();
+        _mixer.RemoveAllMixerInputs();
+        return voices;
+    }
+
+    private void RaiseStoppedEvents(IEnumerable<PlaybackVoice> stoppedVoices)
+    {
+        foreach (var voice in stoppedVoices)
+        {
+            voice.Dispose();
+            StateChanged?.Invoke(
+                this,
+                new PlaybackStateChangedEventArgs(
+                    CorePlaybackState.Stopped,
+                    voice.Id,
+                    voice.FilePath,
+                    0));
+        }
+    }
+
+    private void DisposeOutputNoLock()
     {
         var output = _output;
-        var reader = _reader;
-
         _output = null;
-        _reader = null;
-        CurrentFilePath = null;
 
         if (output is not null)
         {
-            output.PlaybackStopped -= OnPlaybackStopped;
+            output.PlaybackStopped -= OnOutputPlaybackStopped;
             output.Stop();
             output.Dispose();
         }
 
-        reader?.Dispose();
+        _activeOutputDevice?.Dispose();
+        _activeOutputDevice = null;
     }
 
     public void Dispose()
@@ -130,10 +337,25 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
         lock (_gate)
         {
-            DisposeCurrentPlayback();
+            foreach (var voice in RemoveAllVoicesNoLock())
+            {
+                voice.Dispose();
+            }
+
+            DisposeOutputNoLock();
+            _mixer.MixerInputEnded -= OnMixerInputEnded;
             _disposed = true;
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private sealed record PlaybackVoice(
+        Guid Id,
+        string FilePath,
+        AudioFileReader Reader,
+        ISampleProvider MixerInput) : IDisposable
+    {
+        public void Dispose() => Reader.Dispose();
     }
 }

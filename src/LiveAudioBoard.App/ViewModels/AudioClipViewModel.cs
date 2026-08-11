@@ -36,12 +36,17 @@ public partial class AudioClipViewModel : ObservableObject
     private bool isFavorite;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPlaying))]
     [NotifyPropertyChangedFor(nameof(PlayActionText))]
-    private bool isPlaying;
+    private int activePlaybackCount;
 
     public string FavoriteGlyph => IsFavorite ? "★" : "☆";
 
-    public string PlayActionText => IsPlaying ? "播放中" : "播放";
+    public bool IsPlaying => ActivePlaybackCount > 0;
+
+    public string PlayActionText => ActivePlaybackCount > 0
+        ? $"播放中 ×{ActivePlaybackCount}"
+        : "播放";
 
     partial void OnIsFavoriteChanged(bool value)
     {

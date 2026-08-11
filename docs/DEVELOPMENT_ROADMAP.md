@@ -9,7 +9,7 @@ LiveAudioBoard 是一款仅面向 Windows 的直播音频面板。核心使用�
 | 层 | 技术 | 约束 |
 |---|---|---|
 | 桌面界面 | C#、WPF、MVVM Toolkit | 当前使用 `net8.0-windows`；发布前升级 .NET 10 LTS |
-| 音频 | NAudio 2 稳定版、WASAPI 共享模式 | 先做单输出和可靠停止，再扩展混音与多设备 |
+| 音频 | NAudio 2 稳定版、WASAPI 共享模式 | 固定 48 kHz 双声道混音，支持选择一个 Windows 输出端点 |
 | 数据 | SQLite、EF Core | 分类是逻辑关系；磁盘只保存一份媒体文件 |
 | 下载 | `IDownloadProvider` 适配器 | 只接合法直链、RSS 与授权 API，不绕过 DRM |
 | 发布 | Git、GitHub Actions、GitHub Releases、Velopack | 源码与用户媒体分离，标签使用 SemVer |
@@ -33,7 +33,8 @@ LiveAudioBoard/
 ├─ Downloads/   下载中的 .part 临时文件
 ├─ Covers/      封面与波形缓存
 ├─ Backups/     数据库备份
-└─ library.db   分类、收藏、标签、来源与播放设置
+├─ library.db   分类、收藏、标签与来源
+└─ settings.json 输出设备与全局热键偏好
 ```
 
 首个版本只记录用户选择的原始文件路径，下一里程碑加入“复制进资料库”和重复文件哈希检测。
@@ -50,7 +51,7 @@ LiveAudioBoard/
 
 ### P1：直播可靠性
 
-- 多音效并发混音、独占播放模式、淡入淡出和循环。
+- 独占播放模式、淡入淡出和循环。
 - 全局热键编辑、冲突检测和防重复触发。
 - 非破坏性起止点、单曲音量、播放冷却时间。
 - 文件复制、SHA-256 去重、资料库备份和恢复。
@@ -92,8 +93,9 @@ LiveAudioBoard/
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
 - [x] 首版玻璃拟态主界面。
 - [x] 音频导入、SQLite 记录、搜索、收藏、播放和停止。
-- [ ] 输出设备选择与多音效混音。
-- [ ] 全局热键与紧急停止。
+- [x] 输出设备选择、刷新、偏好持久化与多音效混音。
+- [x] 全局 `Ctrl+Shift+F10` 紧急停止、冲突反馈与防重复触发。
 - [ ] 资料库复制、去重与自动备份。
 - [ ] 第三方下载提供器。
-- [ ] GitHub Actions、安装包和远程仓库推送。
+- [x] GitHub 远程仓库与首个可运行版本推送。
+- [ ] GitHub Actions 与 Windows 安装包。

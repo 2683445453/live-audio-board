@@ -20,18 +20,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAudioPlaybackService _playbackService;
     private readonly IAudioMetadataReader _metadataReader;
     private readonly IAudioFilePicker _filePicker;
+    private readonly IAppSettingsStore _settingsStore;
+    private AppSettings _settings = new();
+    private bool _suppressDeviceSelection;
     private bool _disposed;
 
     public MainViewModel(
         IAudioLibraryRepository repository,
         IAudioPlaybackService playbackService,
         IAudioMetadataReader metadataReader,
-        IAudioFilePicker filePicker)
+        IAudioFilePicker filePicker,
+        IAppSettingsStore settingsStore)
     {
         _repository = repository;
         _playbackService = playbackService;
         _metadataReader = metadataReader;
         _filePicker = filePicker;
+        _settingsStore = settingsStore;
 
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
         ClipsView.Filter = MatchesCurrentFilter;
@@ -47,7 +52,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<string> Categories { get; } = [];
 
+    public ObservableCollection<AudioOutputDevice> OutputDevices { get; } = [];
+
     public ICollectionView ClipsView { get; }
+
+    public bool EnableEmergencyStopHotkey => _settings.EnableEmergencyStopHotkey;
+
+    public string EmergencyStopHotkeyText => _settings.EmergencyStopHotkey;
+
+    public string OutputDeviceName =>
+        SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
+
+    public string ActivePlaybackSummary => ActivePlaybackCount == 0
+        ? "0 路活动"
+        : $"{ActivePlaybackCount} 路混音中";
 
     [ObservableProperty]
     private string searchText = string.Empty;
@@ -79,8 +97,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string resultSummary = "0 段音频";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutputDeviceName))]
+    private AudioOutputDevice? selectedOutputDevice;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActivePlaybackSummary))]
+    private int activePlaybackCount;
+
+    [ObservableProperty]
+    private string emergencyHotkeyStatus = "正在注册紧急停止热键…";
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        _settings = await _settingsStore.LoadAsync(cancellationToken);
+
         var clips = await _repository.GetAllAsync(cancellationToken);
         foreach (var clip in clips)
         {
@@ -88,7 +119,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             EnsureCategory(clip.Category);
         }
 
+        RefreshOutputDevicesCore(_settings.OutputDeviceId);
         RefreshFilter();
+        OnPropertyChanged(nameof(EnableEmergencyStopHotkey));
+        OnPropertyChanged(nameof(EmergencyStopHotkeyText));
         StatusText = clips.Count == 0
             ? "资料库已就绪，导入第一段音频吧"
             : $"资料库已就绪 · {clips.Count} 段音频";
@@ -99,6 +133,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedCategoryChanged(string value) => RefreshFilter();
 
     partial void OnFavoritesOnlyChanged(bool value) => RefreshFilter();
+
+    partial void OnSelectedOutputDeviceChanged(AudioOutputDevice? value)
+    {
+        if (_suppressDeviceSelection || value is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _playbackService.SelectOutputDevice(value.Id);
+            _settings.OutputDeviceId = value.Id;
+            _ = SaveSettingsSafelyAsync();
+            StatusText = $"输出设备已切换为「{value.Name}」";
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"输出设备切换失败：{exception.Message}";
+            RefreshOutputDevicesCore(AudioOutputDevice.FollowDefaultDeviceId);
+        }
+    }
 
     [RelayCommand]
     private async Task ImportAudioAsync()
@@ -177,7 +232,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         try
         {
-            _playbackService.Stop();
+            _playbackService.StopAll();
             StatusText = "已停止全部播放";
         }
         catch (ObjectDisposedException)
@@ -200,6 +255,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         StatusText = clip.IsFavorite
             ? $"已收藏「{clip.Title}」"
             : $"已取消收藏「{clip.Title}」";
+    }
+
+    [RelayCommand]
+    private void RefreshOutputDevices()
+    {
+        var selectedId = SelectedOutputDevice?.Id ?? _settings.OutputDeviceId;
+        RefreshOutputDevicesCore(selectedId);
+        StatusText = $"已发现 {Math.Max(0, OutputDevices.Count - 1)} 个可用输出设备";
     }
 
     [RelayCommand]
@@ -232,7 +295,54 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenHotkeyCenter()
     {
-        StatusText = "全局热键中心将在直播可靠性阶段接入";
+        StatusText = EmergencyHotkeyStatus;
+    }
+
+    public void SetEmergencyHotkeyRegistration(bool registered, int errorCode = 0)
+    {
+        EmergencyHotkeyStatus = registered
+            ? $"紧急停止热键 {EmergencyStopHotkeyText} 已启用"
+            : $"紧急停止热键注册失败（错误 {errorCode}），可能与其他软件冲突";
+
+        if (!registered)
+        {
+            StatusText = EmergencyHotkeyStatus;
+        }
+    }
+
+    private void RefreshOutputDevicesCore(string preferredDeviceId)
+    {
+        IReadOnlyList<AudioOutputDevice> devices;
+        try
+        {
+            devices = _playbackService.GetOutputDevices();
+        }
+        catch
+        {
+            devices = [AudioOutputDevice.FollowWindowsDefault];
+        }
+
+        _suppressDeviceSelection = true;
+        try
+        {
+            OutputDevices.Clear();
+            foreach (var device in devices)
+            {
+                OutputDevices.Add(device);
+            }
+
+            SelectedOutputDevice = OutputDevices.FirstOrDefault(
+                                       device => device.Id == preferredDeviceId) ??
+                                   OutputDevices.FirstOrDefault();
+            _playbackService.SelectOutputDevice(
+                SelectedOutputDevice?.Id ?? AudioOutputDevice.FollowDefaultDeviceId);
+        }
+        finally
+        {
+            _suppressDeviceSelection = false;
+        }
+
+        OnPropertyChanged(nameof(OutputDeviceName));
     }
 
     private bool MatchesCurrentFilter(object item)
@@ -284,40 +394,64 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            foreach (var clip in Clips)
+            var clip = Clips.FirstOrDefault(item => string.Equals(
+                item.FilePath,
+                args.FilePath,
+                StringComparison.OrdinalIgnoreCase));
+
+            if (clip is not null)
             {
-                clip.IsPlaying = args.State == PlaybackState.Playing &&
-                    string.Equals(clip.FilePath, args.FilePath, StringComparison.OrdinalIgnoreCase);
+                if (args.State == PlaybackState.Playing)
+                {
+                    clip.ActivePlaybackCount++;
+                }
+                else if (args.PlaybackId != Guid.Empty && clip.ActivePlaybackCount > 0)
+                {
+                    clip.ActivePlaybackCount--;
+                }
             }
 
-            IsPlaying = args.State == PlaybackState.Playing;
+            ActivePlaybackCount = args.ActivePlaybackCount;
+            IsPlaying = ActivePlaybackCount > 0;
 
             switch (args.State)
             {
-                case PlaybackState.Playing:
-                    var current = Clips.FirstOrDefault(clip => string.Equals(
-                        clip.FilePath,
-                        args.FilePath,
-                        StringComparison.OrdinalIgnoreCase));
-                    if (current is not null)
-                    {
-                        SelectedClip = current;
-                        NowPlayingTitle = current.Title;
-                        NowPlayingSubtitle = $"{current.Category} · {current.DurationText} · 默认输出";
-                        StatusText = $"正在播放「{current.Title}」";
-                    }
+                case PlaybackState.Playing when clip is not null:
+                    SelectedClip = clip;
+                    NowPlayingTitle = clip.Title;
+                    NowPlayingSubtitle =
+                        $"{clip.Category} · {clip.DurationText} · {ActivePlaybackSummary}";
+                    StatusText = $"已加入混音「{clip.Title}」· {ActivePlaybackSummary}";
                     break;
                 case PlaybackState.Error:
                     StatusText = $"播放错误：{args.Error?.Message ?? "未知错误"}";
                     NowPlayingSubtitle = "播放失败，请检查文件和输出设备";
                     break;
-                default:
+                case PlaybackState.Stopped when ActivePlaybackCount == 0:
                     NowPlayingSubtitle = SelectedClip is null
                         ? "选择一段音频开始直播播放"
                         : $"{SelectedClip.Category} · 已停止";
                     break;
+                case PlaybackState.Stopped:
+                    NowPlayingSubtitle = ActivePlaybackSummary;
+                    break;
             }
         });
+    }
+
+    private async Task SaveSettingsSafelyAsync()
+    {
+        try
+        {
+            await _settingsStore.SaveAsync(_settings);
+        }
+        catch (Exception exception)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                StatusText = $"设置保存失败：{exception.Message}";
+            });
+        }
     }
 
     public void Dispose()

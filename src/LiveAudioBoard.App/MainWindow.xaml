@@ -247,7 +247,8 @@
                                 Style="{StaticResource QuietButtonStyle}"
                                 HorizontalContentAlignment="Center"
                                 Command="{Binding OpenHotkeyCenterCommand}"
-                                Content="热键中心" />
+                                Content="紧急停止热键"
+                                ToolTip="{Binding EmergencyHotkeyStatus}" />
                     </Grid>
                 </Border>
 
@@ -368,7 +369,7 @@
                                                                FontSize="10"
                                                                Foreground="{StaticResource TextMutedBrush}"
                                                                Text="{Binding HotkeyText}" />
-                                                    <Button Width="66"
+                                                    <Button Width="82"
                                                             Height="34"
                                                             HorizontalAlignment="Right"
                                                             Style="{StaticResource QuietButtonStyle}"
@@ -445,12 +446,12 @@
                             <TextBlock FontSize="16"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                       Text="直播队列" />
+                                       Text="活动混音" />
                             <TextBlock HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="0 待播放" />
+                                       Text="{Binding ActivePlaybackSummary}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Margin="0,24,0,22">
@@ -473,25 +474,38 @@
                         <Rectangle Grid.Row="2" Fill="#1FFFFFFF" />
 
                         <StackPanel Grid.Row="3" Margin="0,22,0,0">
-                            <TextBlock FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Text="音频路由" />
-                            <Grid Margin="0,12,0,0">
+                            <Grid>
                                 <StackPanel>
-                                    <TextBlock FontSize="13"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               Text="默认输出设备" />
-                                    <TextBlock Margin="0,4,0,0"
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="音频路由" />
+                                    <TextBlock Margin="0,3,0,0"
                                                FontSize="10"
                                                Foreground="{StaticResource TextMutedBrush}"
                                                Text="WASAPI · 共享模式" />
                                 </StackPanel>
-                                <Ellipse Width="8"
-                                         Height="8"
-                                         HorizontalAlignment="Right"
-                                         VerticalAlignment="Center"
-                                         Fill="{StaticResource ChampagneBrush}" />
+                                <Button Width="34"
+                                        Height="32"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        FontFamily="Segoe Fluent Icons"
+                                        FontSize="13"
+                                        Command="{Binding RefreshOutputDevicesCommand}"
+                                        Content="&#xE72C;"
+                                        ToolTip="刷新输出设备" />
                             </Grid>
+                            <ComboBox Margin="0,11,0,0"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding OutputDevices}"
+                                      SelectedItem="{Binding SelectedOutputDevice, Mode=TwoWay}"
+                                      ToolTip="选择直播音频播放到哪一个 Windows 输出设备">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
 
                         <StackPanel Grid.Row="4" Margin="0,28,0,0">
@@ -504,6 +518,24 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Text="在 OBS 中添加“应用程序音频捕获”，并选择 LiveAudioBoard，即可单独控制直播音量。" />
+                            <Border Margin="0,18,0,0"
+                                    Padding="12,10"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="12">
+                                <StackPanel>
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="全局急停" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="10"
+                                               LineHeight="16"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding EmergencyHotkeyStatus}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
 
                         <Button Grid.Row="5"
@@ -584,7 +616,7 @@
                                    HorizontalAlignment="Right"
                                    FontSize="12"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="Windows 默认输出" />
+                                   Text="{Binding OutputDeviceName}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -596,7 +628,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="MVP 0.1 · 本地资料库" />
+                           Text="MVP 0.2 · 多路混音" />
             </Grid>
         </Grid>
     </Grid>
