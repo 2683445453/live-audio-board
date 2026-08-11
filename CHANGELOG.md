@@ -5,7 +5,12 @@ All notable changes to LiveAudioBoard are documented in this file. The project f
 
 ## [Unreleased]
 
-No unreleased changes.
+### Fixed
+
+- Prevented underlying library content from bleeding through the recording modal.
+- Corrected playback-route, recording-source, and export-format option labels in custom combo boxes.
+- Removed clipping from audio cards and the persistent player at Windows display scaling above 100%.
+- Replaced native scroll bars and refined range sliders to match the glassmorphism interface.
 
 ## [0.22.0] - 2026-08-11
 

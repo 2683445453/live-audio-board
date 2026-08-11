@@ -430,59 +430,253 @@
     </Style>
 
     <Style x:Key="GlassSliderStyle" TargetType="Slider">
-        <Setter Property="Height" Value="22" />
+        <Setter Property="Height" Value="28" />
         <Setter Property="Foreground" Value="{StaticResource ChampagneBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid VerticalAlignment="Center">
-                        <Track x:Name="PART_Track" Height="18">
+                        <Border x:Name="FocusGlow"
+                                Height="12"
+                                Background="#18E4B863"
+                                CornerRadius="6"
+                                Opacity="0" />
+                        <Track x:Name="PART_Track" Height="24">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                <RepeatButton Focusable="False"
+                                              Command="{x:Static Slider.DecreaseLarge}">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Border Height="4"
+                                            <Border Height="6"
                                                     VerticalAlignment="Center"
                                                     Background="{StaticResource ChampagneBrush}"
-                                                    CornerRadius="2" />
+                                                    CornerRadius="3">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="7"
+                                                                      ShadowDepth="0"
+                                                                      Opacity="0.34"
+                                                                      Color="#E4B863"
+                                                                      RenderingBias="Performance" />
+                                                </Border.Effect>
+                                            </Border>
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
                             </Track.DecreaseRepeatButton>
                             <Track.Thumb>
-                                <Thumb Width="16" Height="16">
+                                <Thumb x:Name="SliderThumb"
+                                       Width="18"
+                                       Height="18"
+                                       Background="{StaticResource ChampagneBrush}"
+                                       Focusable="False">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Ellipse Fill="{StaticResource ChampagneBrush}"
-                                                     Stroke="#B8FFF1CE"
-                                                     StrokeThickness="1" />
+                                            <Grid>
+                                                <Ellipse x:Name="ThumbGlow"
+                                                         Margin="-4"
+                                                         Fill="#24E4B863"
+                                                         Opacity="0" />
+                                                <Ellipse x:Name="ThumbSurface"
+                                                         Fill="{TemplateBinding Background}"
+                                                         Stroke="#D9FFF1CE"
+                                                         StrokeThickness="1.5">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect BlurRadius="9"
+                                                                          ShadowDepth="2"
+                                                                          Direction="270"
+                                                                          Opacity="0.48"
+                                                                          Color="#030712"
+                                                                          RenderingBias="Performance" />
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                                <Ellipse Width="5"
+                                                         Height="5"
+                                                         Fill="#F7FFF7E8"
+                                                         IsHitTestVisible="False" />
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ThumbGlow" Property="Opacity" Value="1" />
+                                                    <Setter TargetName="ThumbSurface" Property="Stroke" Value="#FFFFFFFF" />
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="ThumbGlow" Property="Opacity" Value="1" />
+                                                    <Setter TargetName="ThumbSurface" Property="Fill" Value="{StaticResource ChampagneTextBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
                             </Track.Thumb>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                <RepeatButton Focusable="False"
+                                              Command="{x:Static Slider.IncreaseLarge}">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Border Height="4"
+                                            <Border Height="6"
                                                     VerticalAlignment="Center"
-                                                    Background="#20FFFFFF"
-                                                    CornerRadius="2" />
+                                                    Background="#24FFFFFF"
+                                                    BorderBrush="#12FFFFFF"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3" />
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
                             </Track.IncreaseRepeatButton>
                         </Track>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="FocusGlow" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PART_Track" Property="Opacity" Value="0.38" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
     <Style TargetType="ScrollBar">
-        <Setter Property="Width" Value="6" />
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Height" Value="Auto" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Foreground" Value="#33FFFFFF" />
+        <Setter Property="Foreground" Value="#667C9CC4" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Margin="0,3">
+                        <Border Width="4"
+                                HorizontalAlignment="Center"
+                                Background="#12FFFFFF"
+                                CornerRadius="2" />
+                        <Track x:Name="PART_Track"
+                               Focusable="False"
+                               IsDirectionReversed="True"
+                               Orientation="Vertical">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Focusable="False"
+                                              Opacity="0"
+                                              Command="{x:Static ScrollBar.PageUpCommand}"
+                                              CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb MinHeight="32"
+                                       Margin="2,0"
+                                       Background="{TemplateBinding Foreground}"
+                                       Cursor="Hand"
+                                       Focusable="False">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="ThumbSurface"
+                                                    Width="6"
+                                                    HorizontalAlignment="Center"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="3" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                    <Setter TargetName="ThumbSurface" Property="Background" Value="{StaticResource MoonlightBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsDragging" Value="True">
+                                                    <Setter TargetName="ThumbSurface" Property="Width" Value="8" />
+                                                    <Setter TargetName="ThumbSurface" Property="Background" Value="{StaticResource ChampagneBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Focusable="False"
+                                              Opacity="0"
+                                              Command="{x:Static ScrollBar.PageDownCommand}"
+                                              CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PART_Track" Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="10" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid Margin="3,0">
+                                <Border Height="4"
+                                        VerticalAlignment="Center"
+                                        Background="#12FFFFFF"
+                                        CornerRadius="2" />
+                                <Track x:Name="PART_Track"
+                                       Focusable="False"
+                                       IsDirectionReversed="False"
+                                       Orientation="Horizontal">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Focusable="False"
+                                                      Opacity="0"
+                                                      Command="{x:Static ScrollBar.PageLeftCommand}"
+                                                      CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb MinWidth="32"
+                                               Margin="0,2"
+                                               Background="{TemplateBinding Foreground}"
+                                               Cursor="Hand"
+                                               Focusable="False">
+                                            <Thumb.Template>
+                                                <ControlTemplate TargetType="Thumb">
+                                                    <Border x:Name="ThumbSurface"
+                                                            Height="6"
+                                                            VerticalAlignment="Center"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="3" />
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="ThumbSurface" Property="Height" Value="8" />
+                                                            <Setter TargetName="ThumbSurface" Property="Background" Value="{StaticResource MoonlightBrush}" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsDragging" Value="True">
+                                                            <Setter TargetName="ThumbSurface" Property="Height" Value="8" />
+                                                            <Setter TargetName="ThumbSurface" Property="Background" Value="{StaticResource ChampagneBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Thumb.Template>
+                                        </Thumb>
+                                    </Track.Thumb>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Focusable="False"
+                                                      Opacity="0"
+                                                      Command="{x:Static ScrollBar.PageRightCommand}"
+                                                      CommandTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </Track.IncreaseRepeatButton>
+                                </Track>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="PART_Track" Property="Opacity" Value="0.35" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="ToolTip">

@@ -102,7 +102,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="52" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="106" />
+                <RowDefinition Height="124" />
                 <RowDefinition Height="26" />
             </Grid.RowDefinitions>
 
@@ -459,7 +459,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Width="226"
-                                                Height="192"
+                                                Height="210"
                                                 Margin="0,0,12,12"
                                                 Padding="18"
                                                 AllowDrop="True"
@@ -974,6 +974,7 @@
                     Padding="26"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
                     Style="{StaticResource GlassCardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -1018,8 +1019,14 @@
                                       Height="42"
                                       Style="{StaticResource GlassComboBoxStyle}"
                                       ItemsSource="{Binding RecordingSourceOptions}"
-                                      SelectedItem="{Binding SelectedRecordingSource, Mode=TwoWay}"
-                                      DisplayMemberPath="Name" />
+                                      SelectedItem="{Binding SelectedRecordingSource, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <TextBlock Margin="2,6,0,0"
                                        FontSize="9"
                                        Foreground="{StaticResource TextMutedBrush}"
@@ -1822,6 +1829,9 @@
 
                     <ScrollViewer Grid.Row="1"
                                   Margin="0,24,0,18"
+                                  Padding="0,0,4,10"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  PanningMode="VerticalOnly"
                                   VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock FontSize="10"
@@ -1880,8 +1890,14 @@
                                           VerticalAlignment="Center"
                                           Style="{StaticResource GlassComboBoxStyle}"
                                           ItemsSource="{Binding PlaybackRouteOptions}"
-                                          SelectedItem="{Binding PlaybackRouteDraft, Mode=TwoWay}"
-                                          DisplayMemberPath="Name" />
+                                          SelectedItem="{Binding PlaybackRouteDraft, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                             </Grid>
                         </Border>
 
@@ -2110,9 +2126,15 @@
                                           Height="42"
                                           VerticalAlignment="Center"
                                           Style="{StaticResource GlassComboBoxStyle}"
-                                          DisplayMemberPath="Name"
                                           ItemsSource="{Binding ExportFormatOptions}"
-                                          SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}" />
+                                          SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                                 <Button Grid.Column="4"
                                         Height="42"
                                         VerticalAlignment="Center"
