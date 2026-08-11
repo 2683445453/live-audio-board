@@ -16,6 +16,7 @@ using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Core.Recording;
 using LiveAudioBoard.Core.Rendering;
+using LiveAudioBoard.Core.Updates;
 using LiveAudioBoard.Providers;
 
 namespace LiveAudioBoard.App.ViewModels;
@@ -34,6 +35,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
     private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
+    private readonly IAppUpdateService _appUpdateService;
     private readonly AudioImportPathResolver _audioImportPathResolver = new();
     private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
     private readonly MediaRecoveryService _mediaRecoveryService;
@@ -60,7 +62,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAudioLoudnessAnalyzer loudnessAnalyzer,
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
-        IAudioFeedProvider audioFeedProvider)
+        IAudioFeedProvider audioFeedProvider,
+        IAppUpdateService appUpdateService)
     {
         _repository = repository;
         _playbackService = playbackService;
@@ -71,6 +74,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsStore = settingsStore;
         _mediaStore = mediaStore;
         _loudnessAnalyzer = loudnessAnalyzer;
+        _appUpdateService = appUpdateService;
         _loudnessBatchAnalysisService = new LoudnessBatchAnalysisService(
             repository,
             loudnessAnalyzer);
@@ -113,6 +117,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Categories.Add(category);
         }
+
+        UpdateStatus = appUpdateService.IsInstalled
+            ? $"v{appUpdateService.CurrentVersion} · 正在后台检查更新…"
+            : $"v{appUpdateService.CurrentVersion} · 便携 / 开发版";
     }
 
     public ObservableCollection<AudioClipViewModel> Clips { get; } = [];
@@ -234,6 +242,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         : $"{ActivePlaybackCount} 路混音中";
 
     public string PageSummary => $"{CurrentPage} / {TotalPages}";
+
+    public string UpdateActionText
+    {
+        get
+        {
+            if (IsUpdatingApplication)
+            {
+                return HasAvailableUpdate ? "正在下载更新…" : "正在检查更新…";
+            }
+
+            if (IsUpdateReady)
+            {
+                return "重启并更新";
+            }
+
+            return HasAvailableUpdate
+                ? $"下载 v{AvailableUpdateVersion}"
+                : "检查更新";
+        }
+    }
 
     [ObservableProperty]
     private string searchText = string.Empty;
@@ -455,6 +483,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string batchLoudnessStatus = "批量分析尚未开始";
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UpdateApplicationCommand))]
+    [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    private bool isUpdatingApplication;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    private bool hasAvailableUpdate;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    private bool isUpdateReady;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateActionText))]
+    private string? availableUpdateVersion;
+
+    [ObservableProperty]
+    private double updateProgressPercent;
+
+    [ObservableProperty]
+    private string updateStatus = "正在读取版本信息…";
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -514,6 +565,106 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             StatusText += $" · {missingFiles} 个文件缺失";
         }
+
+        if (_appUpdateService.IsInstalled)
+        {
+            _ = CheckForUpdatesOnStartupAsync();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUpdateApplication))]
+    private async Task UpdateApplicationAsync()
+    {
+        if (IsUpdateReady)
+        {
+            try
+            {
+                UpdateStatus = "正在退出并应用更新…";
+                _appUpdateService.ApplyAndRestart();
+            }
+            catch (Exception exception)
+            {
+                UpdateStatus = $"无法应用更新：{exception.Message}";
+            }
+
+            return;
+        }
+
+        var shouldDownload = HasAvailableUpdate;
+        IsUpdatingApplication = true;
+        try
+        {
+            if (!shouldDownload)
+            {
+                UpdateStatus = "正在检查 GitHub Release…";
+                var result = await _appUpdateService.CheckForUpdatesAsync();
+                ApplyUpdateCheckResult(result);
+                return;
+            }
+
+            UpdateProgressPercent = 0;
+            UpdateStatus = $"正在下载 v{AvailableUpdateVersion} · 0%";
+            var progress = new InlineProgress<int>(value =>
+            {
+                UpdateProgressPercent = value;
+                UpdateStatus = $"正在下载 v{AvailableUpdateVersion} · {value}%";
+            });
+            await _appUpdateService.DownloadUpdateAsync(progress);
+            IsUpdateReady = true;
+            UpdateProgressPercent = 100;
+            UpdateStatus = $"v{AvailableUpdateVersion} 已就绪，点击重启并更新";
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateStatus = "更新操作已取消";
+        }
+        catch (Exception exception)
+        {
+            UpdateStatus = $"更新失败：{exception.Message}";
+        }
+        finally
+        {
+            IsUpdatingApplication = false;
+        }
+    }
+
+    private bool CanUpdateApplication() => !IsUpdatingApplication;
+
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        try
+        {
+            var result = await _appUpdateService.CheckForUpdatesAsync();
+            if (!_disposed)
+            {
+                ApplyUpdateCheckResult(result);
+            }
+        }
+        catch (Exception)
+        {
+            if (!_disposed)
+            {
+                UpdateStatus = $"v{_appUpdateService.CurrentVersion} · 可稍后手动检查更新";
+            }
+        }
+    }
+
+    private void ApplyUpdateCheckResult(AppUpdateCheckResult result)
+    {
+        AvailableUpdateVersion = result.AvailableVersion;
+        HasAvailableUpdate = result.Availability == AppUpdateAvailability.Available;
+        IsUpdateReady = HasAvailableUpdate && result.ReadyToApply;
+        UpdateProgressPercent = IsUpdateReady ? 100 : 0;
+        UpdateStatus = result.Availability switch
+        {
+            AppUpdateAvailability.DevelopmentBuild =>
+                $"v{result.CurrentVersion} · 便携 / 开发版不参与自动更新",
+            AppUpdateAvailability.UpToDate =>
+                $"v{result.CurrentVersion} · 已是最新版本",
+            _ when result.ReadyToApply =>
+                $"v{result.AvailableVersion} 已就绪，点击重启并更新",
+            _ => $"发现 v{result.AvailableVersion}，点击下载"
+        };
     }
 
     partial void OnSearchTextChanged(string value)

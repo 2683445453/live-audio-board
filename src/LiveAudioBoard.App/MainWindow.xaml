@@ -307,6 +307,45 @@
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip="{Binding BatchLoudnessStatus}" />
                             </StackPanel>
+                            <Border Margin="0,8,0,0"
+                                    Padding="8,7"
+                                    Background="#08FFFFFF"
+                                    BorderBrush="#18FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="10">
+                                <StackPanel>
+                                    <TextBlock Margin="2,0,2,6"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding UpdateStatus}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding UpdateStatus}" />
+                                    <ProgressBar Height="2"
+                                                 Maximum="100"
+                                                 Value="{Binding UpdateProgressPercent}">
+                                        <ProgressBar.Style>
+                                            <Style TargetType="ProgressBar"
+                                                   BasedOn="{StaticResource GlassProgressBarStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsUpdatingApplication}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsUpdateReady}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ProgressBar.Style>
+                                    </ProgressBar>
+                                    <Button Margin="0,5,0,0"
+                                            Padding="8,4"
+                                            HorizontalContentAlignment="Center"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Command="{Binding UpdateApplicationCommand}"
+                                            Content="{Binding UpdateActionText}" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -913,7 +952,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.19 · RSS 音频源与断点续传" />
+                                   Text="MVP 0.20 · .NET 10 安装与自动更新" />
             </Grid>
         </Grid>
 

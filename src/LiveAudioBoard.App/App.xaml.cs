@@ -6,6 +6,7 @@ using LiveAudioBoard.Audio;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Infrastructure;
 using LiveAudioBoard.Providers;
+using Velopack;
 
 namespace LiveAudioBoard.App;
 
@@ -14,6 +15,15 @@ public partial class App : Application
     private readonly CrashLogWriter _crashLogWriter = CrashLogWriter.CreateDefault();
     private IAudioPlaybackService? _playbackService;
     private int _isHandlingFatalError;
+
+    [STAThread]
+    public static void Main(string[] args)
+    {
+        VelopackApp.Build().Run();
+        var application = new App();
+        application.InitializeComponent();
+        application.Run();
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -53,7 +63,8 @@ public partial class App : Application
                 new EbuR128LoudnessAnalyzer(),
                 providerCatalog,
                 audioSearchProvider,
-                new RssAudioFeedProvider());
+                new RssAudioFeedProvider(),
+                new VelopackAppUpdateService());
 
             await viewModel.InitializeAsync();
             if (backupResult?.Created == true)

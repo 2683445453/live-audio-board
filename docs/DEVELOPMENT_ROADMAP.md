@@ -8,7 +8,7 @@ LiveAudioBoard 是一款仅面向 Windows 的直播音频面板。核心使用�
 
 | 层 | 技术 | 约束 |
 |---|---|---|
-| 桌面界面 | C#、WPF、MVVM Toolkit | 当前使用 `net8.0-windows`；发布前升级 .NET 10 LTS |
+| 桌面界面 | C#、WPF、MVVM Toolkit | 使用 `net10.0-windows` 与固定 .NET SDK 10.0.302 |
 | 音频 | NAudio 2 稳定版、WASAPI 共享模式 | 固定 48 kHz 双声道混音，直播与监听总线分别选择 Windows 输出端点 |
 | 数据 | SQLite、EF Core | 分类是逻辑关系；磁盘只保存一份媒体文件 |
 | 下载 | `IDownloadProvider` 适配器 | 只接合法直链、RSS 与授权 API，不绕过 DRM |
@@ -65,7 +65,7 @@ LiveAudioBoard/
 - RSS/Atom 音频附件浏览与 HTTP Range 断点续传已完成；多任务下载队列待发布阶段完善。
 - Freesound OAuth2 适配器并保存作者、来源和许可证。
 - Internet Archive 等授权来源；平台适配器与播放核心隔离。
-- Velopack 安装和自动更新；GitHub 标签触发 Windows Release。
+- Velopack 每用户安装、便携包和应用内自动更新；GitHub 标签触发 Windows Release。（已完成）
 
 ## 直播音频路由
 
@@ -107,8 +107,9 @@ SHA-256 去重、自动备份以及非破坏性起止点/循环/独占/淡入淡
 拖入分类与每页 8 条的宫格分页也已落地。默认麦克风/系统回环录音、最长时长、实时电平、
 48 kHz 双声道 WAV 转换、首尾静音裁剪与自动入库也已完成。当前起止点、音量、淡入淡出、
 建议增益和峰值保护现可烘焙为新的 WAV、MP3 或 M4A 音效，原文件保持不变，生成结果自动
-进入内容寻址媒体库。RSS/Atom 音频附件浏览与安全断点续传也已落地；下一阶段进入
-Freesound 高质量原文件授权与发布自动化。
+进入内容寻址媒体库。RSS/Atom 音频附件浏览与安全断点续传也已落地。.NET 10 LTS、
+GitHub Actions、Velopack 每用户安装包、便携包、可选代码签名和应用内 GitHub Release
+更新也已完成；下一阶段进入 Freesound 高质量原文件授权。
 
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
@@ -138,4 +139,4 @@ Freesound 高质量原文件授权与发布自动化。
 - [x] RSS/Atom Feed 载入、音频附件试听下载与 ETag/Last-Modified 安全断点续传。
 - [ ] Freesound OAuth2 原始高质量文件下载。
 - [x] GitHub 远程仓库与首个可运行版本推送。
-- [ ] GitHub Actions 与 Windows 安装包。
+- [x] .NET 10 LTS 迁移、GitHub Actions、Windows 安装包、便携包与应用内自动更新。

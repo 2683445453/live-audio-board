@@ -4,7 +4,7 @@
 
 当前里程碑已经包含：
 
-- WPF/.NET 8 分层项目骨架；
+- WPF/.NET 10 LTS 分层项目骨架；
 - 夜航玻璃拟态主界面；
 - 本地音频导入与 SQLite 持久化；
 - 文件/文件夹拖放、文件夹递归扫描与按首级子目录自动分类；
@@ -34,10 +34,9 @@
 - 软件内载入 RSS 2.0、Media RSS 与 Atom Feed 的音频附件；
 - 搜索结果分页与下载前在线试听；
 - HTTP/HTTPS 音频下载、进度、取消、Range 断点续传、许可证记录与自动导入；
+- Velopack 每用户安装包、便携包、GitHub Release 与应用内自动更新；
+- GitHub Actions 自动还原、构建、测试、自包含发布与版本标签打包；
 - xUnit 核心模型、声道转换和设置存储测试。
-
-> 当前开发机只有 .NET 8 SDK，因此先保证项目可构建。稳定发布前按
-> [开发路线](docs/DEVELOPMENT_ROADMAP.md)升级到 .NET 10 LTS。
 
 ## 运行
 
@@ -47,10 +46,31 @@ dotnet build LiveAudioBoard.sln
 dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ```
 
+仓库使用 `global.json` 固定 .NET SDK 10.0.302。正式发布为 `win-x64` 自包含应用，终端用户
+不需要另外安装 .NET Desktop Runtime。
+
+## 构建 Windows 发行包
+
+```powershell
+./scripts/build-release.ps1 -Version 0.20.0
+```
+
+脚本会先执行完整测试，再在 `artifacts/release-local/releases` 生成每用户 Setup、MSI、
+Velopack 更新包与便携 ZIP。推送 `v0.20.0` 形式的标签后，GitHub Actions 会重复该流程并
+创建 GitHub Release。安装版启动后会在侧栏后台检查稳定版 Release，可下载后重启更新；
+便携版和本地开发版不会尝试覆盖自身。
+
+代码签名是可选配置。仓库 Secrets 同时提供 `WINDOWS_SIGN_PFX_BASE64` 与
+`WINDOWS_SIGN_PFX_PASSWORD` 时，流水线会为发行文件进行 SHA-256 时间戳签名；未配置
+证书的安装包仍可生成，但 Windows SmartScreen 可能提示未知发布者。签名证书与密码不得
+提交到仓库。
+
 首次运行会在 `%LOCALAPPDATA%\LiveAudioBoard` 创建 `library.db`。新导入和下载成功的音频
 会进入 `Media`，数据库备份进入 `Backups`，播放偏好保存在同目录的 `settings.json`。
 旧版本已经记录的外部文件路径保持不变，不会在启动时擅自移动。
 用户音频、数据库、缓存与密钥不会进入 Git 仓库。
+Velopack 只替换安装目录中的应用文件，资料库和设置仍保存在 `%LOCALAPPDATA%`，更新时不会
+删除用户音频、数据库或备份。
 
 程序异常退出时会在 `%LOCALAPPDATA%\LiveAudioBoard\Logs` 写入诊断日志，并在可显示错误
 窗口时给出具体路径。日志包含异常堆栈、应用/系统/运行时版本，不会上传到网络；目录内

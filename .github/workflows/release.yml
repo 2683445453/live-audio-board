@@ -1,0 +1,100 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer without the v prefix"
+        required: true
+        default: "0.20.0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.302
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            .config/dotnet-tools.json
+
+      - name: Resolve version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+          }
+          else {
+            $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Invalid SemVer: $version"
+          }
+
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Test, publish and package
+        shell: pwsh
+        env:
+          WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WINDOWS_SIGN_PFX_BASE64 }}
+          WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGN_PFX_PASSWORD }}
+        run: |
+          $signParams = ""
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGN_PFX_BASE64)) {
+            if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGN_PFX_PASSWORD)) {
+              throw "WINDOWS_SIGN_PFX_PASSWORD is required when a signing certificate is configured."
+            }
+
+            $certificatePath = Join-Path $env:RUNNER_TEMP "liveaudioboard-signing.pfx"
+            [IO.File]::WriteAllBytes(
+              $certificatePath,
+              [Convert]::FromBase64String($env:WINDOWS_SIGN_PFX_BASE64))
+            $signParams = "/f `"$certificatePath`" /p `"$env:WINDOWS_SIGN_PFX_PASSWORD`" /fd SHA256 /tr http://timestamp.digicert.com /td SHA256"
+          }
+
+          ./scripts/build-release.ps1 `
+            -Version $env:APP_VERSION `
+            -OutputRoot artifacts `
+            -SignParams $signParams
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: LiveAudioBoard-${{ env.APP_VERSION }}-win-x64
+          path: artifacts/releases/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem artifacts/releases -File |
+            ForEach-Object FullName
+          if ($assets.Count -eq 0) {
+            throw "No release assets were produced."
+          }
+
+          gh release create $env:GITHUB_REF_NAME @assets `
+            --title "LiveAudioBoard $env:APP_VERSION" `
+            --generate-notes
