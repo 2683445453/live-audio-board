@@ -17,7 +17,8 @@ public sealed class AudioPlaybackOptionsTests
             EndOffsetMilliseconds: -1,
             GainDb: 20,
             EnablePeakProtection: true,
-            PeakCeilingDbfs: -20);
+            PeakCeilingDbfs: -20,
+            Route: (AudioPlaybackRoute)99);
 
         var normalized = options.Normalize();
 
@@ -31,5 +32,6 @@ public sealed class AudioPlaybackOptionsTests
         Assert.Equal(12d, normalized.GainDb);
         Assert.True(normalized.EnablePeakProtection);
         Assert.Equal(-12d, normalized.PeakCeilingDbfs);
+        Assert.Equal(AudioPlaybackRoute.LiveAndMonitor, normalized.Route);
     }
 }

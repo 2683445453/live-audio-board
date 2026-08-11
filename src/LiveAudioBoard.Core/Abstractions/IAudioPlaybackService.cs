@@ -11,9 +11,13 @@ public interface IAudioPlaybackService : IDisposable
 
     string SelectedOutputDeviceId { get; }
 
+    string SelectedMonitorOutputDeviceId => SelectedOutputDeviceId;
+
     IReadOnlyList<AudioOutputDevice> GetOutputDevices();
 
     void SelectOutputDevice(string deviceId);
+
+    void SelectMonitorOutputDevice(string deviceId) => SelectOutputDevice(deviceId);
 
     Guid Play(string filePath, double volume = 1d);
 

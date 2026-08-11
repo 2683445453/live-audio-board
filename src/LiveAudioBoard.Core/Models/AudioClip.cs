@@ -1,5 +1,7 @@
 namespace LiveAudioBoard.Core.Models;
 
+using LiveAudioBoard.Core.Playback;
+
 public sealed class AudioClip
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -21,6 +23,8 @@ public sealed class AudioClip
     public bool LoopPlayback { get; set; }
 
     public bool ExclusivePlayback { get; set; }
+
+    public AudioPlaybackRoute PlaybackRoute { get; set; } = AudioPlaybackRoute.LiveAndMonitor;
 
     public int FadeInMilliseconds { get; set; }
 

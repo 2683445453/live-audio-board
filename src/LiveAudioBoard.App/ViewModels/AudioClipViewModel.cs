@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 
 namespace LiveAudioBoard.App.ViewModels;
 
@@ -38,6 +39,12 @@ public partial class AudioClipViewModel : ObservableObject
             }
 
             var modes = new List<string>();
+            modes.Add(Model.PlaybackRoute switch
+            {
+                AudioPlaybackRoute.LiveOnly => "仅直播",
+                AudioPlaybackRoute.MonitorOnly => "仅监听",
+                _ => "直播 + 监听"
+            });
             if (Model.LoopPlayback)
             {
                 modes.Add("循环");

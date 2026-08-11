@@ -10,7 +10,8 @@ public sealed record AudioPlaybackOptions(
     long EndOffsetMilliseconds = 0,
     double GainDb = 0d,
     bool EnablePeakProtection = true,
-    double PeakCeilingDbfs = -1d)
+    double PeakCeilingDbfs = -1d,
+    AudioPlaybackRoute Route = AudioPlaybackRoute.LiveAndMonitor)
 {
     public AudioPlaybackOptions Normalize() => this with
     {
@@ -20,6 +21,7 @@ public sealed record AudioPlaybackOptions(
         StartOffsetMilliseconds = Math.Max(0, StartOffsetMilliseconds),
         EndOffsetMilliseconds = Math.Max(0, EndOffsetMilliseconds),
         GainDb = Math.Clamp(GainDb, -18d, 12d),
-        PeakCeilingDbfs = Math.Clamp(PeakCeilingDbfs, -12d, 0d)
+        PeakCeilingDbfs = Math.Clamp(PeakCeilingDbfs, -12d, 0d),
+        Route = Enum.IsDefined(Route) ? Route : AudioPlaybackRoute.LiveAndMonitor
     };
 }

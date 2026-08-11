@@ -1,4 +1,5 @@
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiveAudioBoard.Infrastructure;
@@ -20,6 +21,8 @@ internal sealed class AudioLibraryDbContext(DbContextOptions<AudioLibraryDbConte
         clip.Property(item => item.Category).HasMaxLength(120).IsRequired();
         clip.Property(item => item.LoopPlayback).HasDefaultValue(false);
         clip.Property(item => item.ExclusivePlayback).HasDefaultValue(false);
+        clip.Property(item => item.PlaybackRoute).HasDefaultValue(
+            AudioPlaybackRoute.LiveAndMonitor);
         clip.Property(item => item.FadeInMilliseconds).HasDefaultValue(0);
         clip.Property(item => item.FadeOutMilliseconds).HasDefaultValue(0);
         clip.Property(item => item.StartOffsetMilliseconds).HasDefaultValue(0L);

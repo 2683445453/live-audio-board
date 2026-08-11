@@ -1,4 +1,5 @@
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Infrastructure;
 using Microsoft.Data.Sqlite;
 
@@ -53,6 +54,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
 
             var saved = Assert.Single(await repository.GetAllAsync());
             Assert.Equal(new string('b', 64), saved.ContentSha256);
+            Assert.Equal(AudioPlaybackRoute.LiveAndMonitor, saved.PlaybackRoute);
         }
         finally
         {
@@ -80,6 +82,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Hotkey = "Ctrl+Alt+1",
             LoopPlayback = true,
             ExclusivePlayback = true,
+            PlaybackRoute = AudioPlaybackRoute.MonitorOnly,
             FadeInMilliseconds = 250,
             FadeOutMilliseconds = 500,
             StartOffsetMilliseconds = 1_000,
@@ -102,6 +105,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Assert.Equal("Ctrl+Alt+1", saved.Hotkey);
             Assert.True(saved.LoopPlayback);
             Assert.True(saved.ExclusivePlayback);
+            Assert.Equal(AudioPlaybackRoute.MonitorOnly, saved.PlaybackRoute);
             Assert.Equal(250, saved.FadeInMilliseconds);
             Assert.Equal(500, saved.FadeOutMilliseconds);
             Assert.Equal(1_000, saved.StartOffsetMilliseconds);

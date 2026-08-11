@@ -115,6 +115,9 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
                     nameof(AudioClip.ExclusivePlayback),
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"ExclusivePlayback\" INTEGER NOT NULL DEFAULT 0;"),
                 (
+                    nameof(AudioClip.PlaybackRoute),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"PlaybackRoute\" INTEGER NOT NULL DEFAULT 0;"),
+                (
                     nameof(AudioClip.FadeInMilliseconds),
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"FadeInMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
                 (

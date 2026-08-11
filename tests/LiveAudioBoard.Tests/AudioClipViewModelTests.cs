@@ -1,5 +1,6 @@
 using LiveAudioBoard.App.ViewModels;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 
 namespace LiveAudioBoard.Tests;
 
@@ -14,6 +15,7 @@ public sealed class AudioClipViewModelTests
             FilePath = typeof(AudioClipViewModelTests).Assembly.Location,
             LoopPlayback = true,
             ExclusivePlayback = true,
+            PlaybackRoute = AudioPlaybackRoute.MonitorOnly,
             FadeInMilliseconds = 250,
             FadeOutMilliseconds = 500,
             StartOffsetMilliseconds = 1_000,
@@ -37,7 +39,7 @@ public sealed class AudioClipViewModelTests
         Assert.Equal(50d, viewModel.PlaybackProgressPercent);
         Assert.Equal("0:01 / 0:02", viewModel.PlaybackPositionText);
         Assert.Equal(
-            "循环 · 独占 · 淡入 250 / 淡出 500 ms · 区间 0:01–0:04 · " +
+            "仅监听 · 循环 · 独占 · 淡入 250 / 淡出 500 ms · 区间 0:01–0:04 · " +
             "增益 +1.2 dB · 峰值保护 · 冷却 500 ms",
             viewModel.PlaybackSettingsSummary);
         Assert.Equal(
@@ -70,7 +72,7 @@ public sealed class AudioClipViewModelTests
 
         Assert.False(viewModel.IsFileMissing);
         Assert.Equal("播放", viewModel.PlayActionText);
-        Assert.Equal("峰值保护", viewModel.PlaybackSettingsSummary);
+        Assert.Equal("直播 + 监听 · 峰值保护", viewModel.PlaybackSettingsSummary);
     }
 
     [Fact]

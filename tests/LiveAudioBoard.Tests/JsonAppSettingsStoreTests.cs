@@ -17,6 +17,7 @@ public sealed class JsonAppSettingsStoreTests
         var expected = new AppSettings
         {
             OutputDeviceId = "test-output-device",
+            MonitorOutputDeviceId = "test-monitor-device",
             EnableEmergencyStopHotkey = false,
             EmergencyStopHotkey = "Ctrl+Shift+F10"
         };
@@ -28,6 +29,7 @@ public sealed class JsonAppSettingsStoreTests
             var actual = await store.LoadAsync();
 
             Assert.Equal(expected.OutputDeviceId, actual.OutputDeviceId);
+            Assert.Equal(expected.MonitorOutputDeviceId, actual.MonitorOutputDeviceId);
             Assert.Equal(expected.EnableEmergencyStopHotkey, actual.EnableEmergencyStopHotkey);
             Assert.Equal(expected.EmergencyStopHotkey, actual.EmergencyStopHotkey);
         }
@@ -53,6 +55,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await store.LoadAsync();
 
         Assert.Equal(AudioOutputDevice.FollowDefaultDeviceId, settings.OutputDeviceId);
+        Assert.Equal(AudioOutputDevice.FollowDefaultDeviceId, settings.MonitorOutputDeviceId);
         Assert.True(settings.EnableEmergencyStopHotkey);
         Assert.Equal("Ctrl+Shift+F10", settings.EmergencyStopHotkey);
     }

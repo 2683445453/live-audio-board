@@ -131,6 +131,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<int> CooldownDurationOptions { get; } = [0, 250, 500, 1000, 2000, 5000];
 
+    public IReadOnlyList<PlaybackRouteChoice> PlaybackRouteOptions { get; } =
+    [
+        PlaybackRouteChoice.LiveAndMonitor,
+        PlaybackRouteChoice.LiveOnly,
+        PlaybackRouteChoice.MonitorOnly
+    ];
+
     public string PlaybackLoopDraftText => PlaybackLoopDraft
         ? "✓ 已开启循环"
         : "开启循环";
@@ -178,6 +185,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public string OutputDeviceName =>
         SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
+
+    public string MonitorOutputDeviceName =>
+        SelectedMonitorOutputDevice?.Name ?? "Windows 默认输出（自动）";
 
     public string ActivePlaybackSummary => ActivePlaybackCount == 0
         ? "0 路活动"
@@ -236,6 +246,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private AudioOutputDevice? selectedOutputDevice;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MonitorOutputDeviceName))]
+    private AudioOutputDevice? selectedMonitorOutputDevice;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActivePlaybackSummary))]
     private int activePlaybackCount;
 
@@ -281,6 +295,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlaybackExclusiveDraftText))]
     private bool playbackExclusiveDraft;
+
+    [ObservableProperty]
+    private PlaybackRouteChoice playbackRouteDraft = PlaybackRouteChoice.LiveAndMonitor;
 
     [ObservableProperty]
     private int playbackFadeInDraft;
@@ -367,7 +384,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             EnsureCategory(clip.Category);
         }
 
-        RefreshOutputDevicesCore(_settings.OutputDeviceId);
+        RefreshOutputDevicesCore(
+            _settings.OutputDeviceId,
+            _settings.MonitorOutputDeviceId);
         RefreshFilter();
         RefreshBatchLoudnessAvailability();
         OnPropertyChanged(nameof(EnableEmergencyStopHotkey));
@@ -404,6 +423,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         PlaybackLoopDraft = value?.Model.LoopPlayback ?? false;
         PlaybackExclusiveDraft = value?.Model.ExclusivePlayback ?? false;
+        PlaybackRouteDraft = PlaybackRouteOptions.FirstOrDefault(choice =>
+            choice.Route == (value?.Model.PlaybackRoute ?? AudioPlaybackRoute.LiveAndMonitor)) ??
+            PlaybackRouteChoice.LiveAndMonitor;
         PlaybackFadeInDraft = NormalizeFadeDuration(value?.Model.FadeInMilliseconds ?? 0);
         PlaybackFadeOutDraft = NormalizeFadeDuration(value?.Model.FadeOutMilliseconds ?? 0);
         PlaybackUseRecommendedGainDraft = value?.Model.UseRecommendedGain ?? false;
@@ -437,12 +459,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _playbackService.SelectOutputDevice(value.Id);
             _settings.OutputDeviceId = value.Id;
             _ = SaveSettingsSafelyAsync();
-            StatusText = $"输出设备已切换为「{value.Name}」";
+            StatusText = $"直播输出已切换为「{value.Name}」";
         }
         catch (Exception exception)
         {
-            StatusText = $"输出设备切换失败：{exception.Message}";
-            RefreshOutputDevicesCore(AudioOutputDevice.FollowDefaultDeviceId);
+            StatusText = $"直播输出切换失败：{exception.Message}";
+            RefreshOutputDevicesCore(
+                AudioOutputDevice.FollowDefaultDeviceId,
+                SelectedMonitorOutputDevice?.Id ?? _settings.MonitorOutputDeviceId);
+        }
+    }
+
+    partial void OnSelectedMonitorOutputDeviceChanged(AudioOutputDevice? value)
+    {
+        if (_suppressDeviceSelection || value is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _playbackService.SelectMonitorOutputDevice(value.Id);
+            _settings.MonitorOutputDeviceId = value.Id;
+            _ = SaveSettingsSafelyAsync();
+            StatusText = $"监听输出已切换为「{value.Name}」";
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"监听输出切换失败：{exception.Message}";
+            RefreshOutputDevicesCore(
+                SelectedOutputDevice?.Id ?? _settings.OutputDeviceId,
+                AudioOutputDevice.FollowDefaultDeviceId);
         }
     }
 
@@ -580,7 +627,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     GainDb: clip.Model.UseRecommendedGain
                         ? clip.Model.RecommendedGainDb ?? 0d
                         : 0d,
-                    EnablePeakProtection: clip.Model.EnablePeakProtection));
+                    EnablePeakProtection: clip.Model.EnablePeakProtection,
+                    Route: clip.Model.PlaybackRoute));
             clip.MarkPlaybackTriggered(triggeredUtc);
         }
         catch (Exception exception)
@@ -868,6 +916,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         PlaybackEditingClip.Model.LoopPlayback = PlaybackLoopDraft;
         PlaybackEditingClip.Model.ExclusivePlayback = PlaybackExclusiveDraft;
+        PlaybackEditingClip.Model.PlaybackRoute = PlaybackRouteDraft.Route;
         PlaybackEditingClip.Model.FadeInMilliseconds = NormalizeFadeDuration(PlaybackFadeInDraft);
         PlaybackEditingClip.Model.FadeOutMilliseconds = NormalizeFadeDuration(PlaybackFadeOutDraft);
         PlaybackEditingClip.Model.UseRecommendedGain = PlaybackUseRecommendedGainDraft;
@@ -958,8 +1007,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void RefreshOutputDevices()
     {
-        var selectedId = SelectedOutputDevice?.Id ?? _settings.OutputDeviceId;
-        RefreshOutputDevicesCore(selectedId);
+        var liveDeviceId = SelectedOutputDevice?.Id ?? _settings.OutputDeviceId;
+        var monitorDeviceId =
+            SelectedMonitorOutputDevice?.Id ?? _settings.MonitorOutputDeviceId;
+        RefreshOutputDevicesCore(liveDeviceId, monitorDeviceId);
         StatusText = $"已发现 {Math.Max(0, OutputDevices.Count - 1)} 个可用输出设备";
     }
 
@@ -1138,7 +1189,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void RefreshOutputDevicesCore(string preferredDeviceId)
+    private void RefreshOutputDevicesCore(
+        string preferredLiveDeviceId,
+        string preferredMonitorDeviceId)
     {
         IReadOnlyList<AudioOutputDevice> devices;
         try
@@ -1160,10 +1213,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             SelectedOutputDevice = OutputDevices.FirstOrDefault(
-                                       device => device.Id == preferredDeviceId) ??
+                                       device => device.Id == preferredLiveDeviceId) ??
                                    OutputDevices.FirstOrDefault();
+            SelectedMonitorOutputDevice = OutputDevices.FirstOrDefault(
+                                              device => device.Id == preferredMonitorDeviceId) ??
+                                          OutputDevices.FirstOrDefault();
             _playbackService.SelectOutputDevice(
                 SelectedOutputDevice?.Id ?? AudioOutputDevice.FollowDefaultDeviceId);
+            _playbackService.SelectMonitorOutputDevice(
+                SelectedMonitorOutputDevice?.Id ?? AudioOutputDevice.FollowDefaultDeviceId);
         }
         finally
         {
@@ -1171,6 +1229,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         OnPropertyChanged(nameof(OutputDeviceName));
+        OnPropertyChanged(nameof(MonitorOutputDeviceName));
     }
 
     private bool MatchesCurrentFilter(object item)

@@ -645,7 +645,7 @@
                                     <TextBlock Margin="0,3,0,0"
                                                FontSize="10"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="WASAPI · 共享模式" />
+                                               Text="直播输出" />
                                 </StackPanel>
                                 <Button Width="34"
                                         Height="32"
@@ -658,10 +658,28 @@
                                         ToolTip="刷新输出设备" />
                             </Grid>
                             <ComboBox Margin="0,11,0,0"
+                                      Height="36"
                                       Style="{StaticResource GlassComboBoxStyle}"
                                       ItemsSource="{Binding OutputDevices}"
                                       SelectedItem="{Binding SelectedOutputDevice, Mode=TwoWay}"
-                                      ToolTip="选择直播音频播放到哪一个 Windows 输出设备">
+                                      ToolTip="直播输出：供 OBS 或虚拟声卡采集">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Margin="2,9,0,0"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="主播监听" />
+                            <ComboBox Margin="0,4,0,0"
+                                      Height="36"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding OutputDevices}"
+                                      SelectedItem="{Binding SelectedMonitorOutputDevice, Mode=TwoWay}"
+                                      ToolTip="监听输出：供主播耳机或扬声器试听">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Name}"
@@ -671,7 +689,7 @@
                             </ComboBox>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="4" Margin="0,28,0,0">
+                        <StackPanel Grid.Row="4" Margin="0,20,0,0">
                             <TextBlock FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Text="OBS 设置提示" />
@@ -680,8 +698,8 @@
                                        LineHeight="19"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
-                                       Text="在 OBS 中添加“应用程序音频捕获”，并选择 LiveAudioBoard，即可单独控制直播音量。" />
-                            <Border Margin="0,18,0,0"
+                                       Text="需要隔离时，将直播输出设为虚拟声卡并让 OBS 捕获该设备；应用程序音频捕获可能同时包含监听。" />
+                            <Border Margin="0,14,0,0"
                                     Padding="12,10"
                                     Background="#0FFFFFFF"
                                     BorderBrush="#1FFFFFFF"
@@ -793,12 +811,22 @@
                         <TextBlock HorizontalAlignment="Right"
                                    FontSize="10"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   Text="输出设备" />
+                                   Text="直播输出" />
                         <TextBlock Margin="0,5,0,0"
                                    HorizontalAlignment="Right"
                                    FontSize="12"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Text="{Binding OutputDeviceName}" />
+                        <TextBlock Margin="0,7,0,0"
+                                   HorizontalAlignment="Right"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="主播监听" />
+                        <TextBlock Margin="0,3,0,0"
+                                   HorizontalAlignment="Right"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="{Binding MonitorOutputDeviceName}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -810,7 +838,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.11 · 媒体恢复" />
+                            Text="MVP 0.12 · 直播 / 监听双总线" />
             </Grid>
         </Grid>
 
@@ -1023,7 +1051,7 @@
                                                         Command="{Binding DataContext.DownloadCenter.TogglePreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"
                                                         Content="试听"
-                                                        ToolTip="使用当前输出设备在线播放；直播中可能会被 OBS 捕获" />
+                                                        ToolTip="使用主播监听设备在线播放，不主动送入直播输出" />
                                                 <Button Grid.Column="5"
                                                         Style="{StaticResource AccentButtonStyle}"
                                                         Padding="8,6"
@@ -1226,7 +1254,7 @@
                             <TextBlock Margin="0,4,0,0"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="起止点、循环与淡入淡出均为非破坏性设置" />
+                                       Text="路由、起止点、循环与淡入淡出均为非破坏性设置" />
                         </StackPanel>
                         <Button Width="38"
                                 Height="36"
@@ -1270,6 +1298,38 @@
                                     Content="{Binding PlaybackExclusiveDraftText}"
                                     ToolTip="播放前停止所有其他音效" />
                         </Grid>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="230" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="播放模式" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               LineHeight="15"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding PlaybackRouteDraft.Description}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          Height="42"
+                                          VerticalAlignment="Center"
+                                          Style="{StaticResource GlassComboBoxStyle}"
+                                          ItemsSource="{Binding PlaybackRouteOptions}"
+                                          SelectedItem="{Binding PlaybackRouteDraft, Mode=TwoWay}"
+                                          DisplayMemberPath="Name" />
+                            </Grid>
+                        </Border>
 
                         <Border Margin="0,20,0,0"
                                 Padding="18"
