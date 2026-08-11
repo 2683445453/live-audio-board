@@ -119,6 +119,12 @@ public sealed class DownloadCenterViewModelTests
 
         public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
 
+        public event EventHandler<AudioOutputDevicesChangedEventArgs>? OutputDevicesChanged
+        {
+            add { }
+            remove { }
+        }
+
         public int ActivePlaybackCount => _activePlaybackId.HasValue ? 1 : 0;
 
         public string SelectedOutputDeviceId => AudioOutputDevice.FollowDefaultDeviceId;

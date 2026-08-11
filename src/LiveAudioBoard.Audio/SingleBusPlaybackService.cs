@@ -1,4 +1,3 @@
-using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using NAudio.CoreAudioApi;
@@ -8,7 +7,7 @@ using CorePlaybackState = LiveAudioBoard.Core.Playback.PlaybackState;
 
 namespace LiveAudioBoard.Audio;
 
-internal sealed class SingleBusPlaybackService : IAudioPlaybackService, IPlaybackOutputBus
+internal sealed class SingleBusPlaybackService : IPlaybackOutputBus
 {
     private const int MixerSampleRate = 48_000;
     private const int MixerChannels = 2;
@@ -353,6 +352,42 @@ internal sealed class SingleBusPlaybackService : IAudioPlaybackService, IPlaybac
         return _masterBus.GetLevelAndReset();
     }
 
+    public OutputDeviceRecoveryResult HandleOutputDeviceChange(
+        AudioOutputDeviceChangeEventArgs change,
+        IReadOnlySet<string> availableDeviceIds)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(availableDeviceIds);
+
+        List<PlaybackVoice> stoppedVoices;
+        OutputDeviceRecoveryDecision decision;
+        lock (_gate)
+        {
+            decision = OutputDeviceRecoveryPolicy.Evaluate(
+                _selectedOutputDeviceId,
+                _activeOutputDevice?.ID,
+                availableDeviceIds,
+                change);
+            if (!decision.ResetOutput)
+            {
+                return OutputDeviceRecoveryResult.None;
+            }
+
+            stoppedVoices = RemoveAllVoicesNoLock();
+            DisposeOutputNoLock();
+            if (decision.RecoverSelectionToDefault)
+            {
+                _selectedOutputDeviceId = AudioOutputDevice.FollowDefaultDeviceId;
+            }
+        }
+
+        RaiseStoppedEvents(stoppedVoices);
+        return new OutputDeviceRecoveryResult(
+            decision.RecoverSelectionToDefault,
+            stoppedVoices.Count > 0);
+    }
+
     private void EnsureOutputStartedNoLock()
     {
         if (_output is not null)
@@ -360,20 +395,15 @@ internal sealed class SingleBusPlaybackService : IAudioPlaybackService, IPlaybac
             return;
         }
 
-        if (_selectedOutputDeviceId == AudioOutputDevice.FollowDefaultDeviceId)
-        {
-            _output = new WasapiOut(AudioClientShareMode.Shared, true, 100);
-        }
-        else
-        {
-            using var enumerator = new MMDeviceEnumerator();
-            _activeOutputDevice = enumerator.GetDevice(_selectedOutputDeviceId);
-            _output = new WasapiOut(
-                _activeOutputDevice,
-                AudioClientShareMode.Shared,
-                true,
-                100);
-        }
+        using var enumerator = new MMDeviceEnumerator();
+        _activeOutputDevice = _selectedOutputDeviceId == AudioOutputDevice.FollowDefaultDeviceId
+            ? enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia)
+            : enumerator.GetDevice(_selectedOutputDeviceId);
+        _output = new WasapiOut(
+            _activeOutputDevice,
+            AudioClientShareMode.Shared,
+            true,
+            100);
 
         _output.PlaybackStopped += OnOutputPlaybackStopped;
         _output.Init(_masterBus);

@@ -130,9 +130,106 @@ public sealed class NaudioPlaybackRoutingTests
         Assert.Same(error, errorEvent.Error);
     }
 
+    [Fact]
+    public void DeviceRemoval_FallsBackAffectedBusAndStopsLogicalPlayback()
+    {
+        var watcher = new FakeOutputDeviceWatcher();
+        var live = new FakeOutputBus("live-device");
+        var monitor = new FakeOutputBus("monitor-device");
+        using var service = new NaudioPlaybackService(live, monitor, watcher);
+        AudioOutputDevicesChangedEventArgs? deviceEvent = null;
+        service.OutputDevicesChanged += (_, args) => deviceEvent = args;
+        service.Play(
+            "sound.wav",
+            new AudioPlaybackOptions(Route: AudioPlaybackRoute.LiveOnly));
+
+        live.RemoveDevice("live-device");
+        watcher.Raise(AudioOutputDeviceChangeKind.Removed, "live-device");
+
+        Assert.Equal(AudioOutputDevice.FollowDefaultDeviceId, service.SelectedOutputDeviceId);
+        Assert.Equal(0, service.ActivePlaybackCount);
+        Assert.NotNull(deviceEvent);
+        Assert.True(deviceEvent.LiveOutputRecoveredToDefault);
+        Assert.False(deviceEvent.MonitorOutputRecoveredToDefault);
+        Assert.True(deviceEvent.PlaybackInterrupted);
+    }
+
+    [Fact]
+    public void DefaultDeviceChange_StopsPlaybackFollowingWindowsDefault()
+    {
+        var watcher = new FakeOutputDeviceWatcher();
+        var live = new FakeOutputBus(AudioOutputDevice.FollowDefaultDeviceId);
+        var monitor = new FakeOutputBus(AudioOutputDevice.FollowDefaultDeviceId);
+        using var service = new NaudioPlaybackService(live, monitor, watcher);
+        AudioOutputDevicesChangedEventArgs? deviceEvent = null;
+        service.OutputDevicesChanged += (_, args) => deviceEvent = args;
+        service.Play("sound.wav");
+
+        watcher.Raise(AudioOutputDeviceChangeKind.DefaultChanged, "other-default");
+
+        Assert.Equal(0, service.ActivePlaybackCount);
+        Assert.NotNull(deviceEvent);
+        Assert.True(deviceEvent.DefaultOutputChanged);
+        Assert.True(deviceEvent.PlaybackInterrupted);
+        Assert.False(deviceEvent.LiveOutputRecoveredToDefault);
+    }
+
+    [Fact]
+    public void RepeatedDualBusPlayback_DoesNotLeakLogicalSessions()
+    {
+        var live = new FakeOutputBus("live-device");
+        var monitor = new FakeOutputBus("monitor-device");
+        using var service = new NaudioPlaybackService(live, monitor);
+
+        for (var index = 0; index < 1_000; index++)
+        {
+            var id = service.Play("sound.wav");
+            live.Complete(id);
+            monitor.Complete(id);
+        }
+
+        Assert.Equal(0, service.ActivePlaybackCount);
+        Assert.Equal(1_000, live.LocalPlaybackIds.Count);
+        Assert.Equal(1_000, monitor.LocalPlaybackIds.Count);
+    }
+
+    [Fact]
+    public void ConcurrentLimit_CountsLogicalSessionsAcrossTwoBuses()
+    {
+        var live = new FakeOutputBus("live-device");
+        var monitor = new FakeOutputBus("monitor-device");
+        using var service = new NaudioPlaybackService(live, monitor);
+
+        for (var index = 0; index < 32; index++)
+        {
+            service.Play("sound.wav");
+        }
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            service.Play("overflow.wav"));
+        Assert.Contains("32", error.Message);
+        Assert.Equal(32, service.ActivePlaybackCount);
+        Assert.Equal(32, live.LocalPlaybackIds.Count);
+        Assert.Equal(32, monitor.LocalPlaybackIds.Count);
+
+        service.StopAll();
+
+        Assert.Equal(0, service.ActivePlaybackCount);
+        Assert.Equal(32, live.StoppedPlaybackIds.Count);
+        Assert.Equal(32, monitor.StoppedPlaybackIds.Count);
+    }
+
     private sealed class FakeOutputBus : IPlaybackOutputBus
     {
         private readonly Dictionary<Guid, PlaybackProgress> _active = [];
+        private readonly List<AudioOutputDevice> _devices =
+        [
+            AudioOutputDevice.FollowWindowsDefault,
+            new AudioOutputDevice("default-device", "Default", true),
+            new AudioOutputDevice("live-device", "Live"),
+            new AudioOutputDevice("monitor-device", "Monitor"),
+            new AudioOutputDevice("same-device", "Same")
+        ];
 
         public FakeOutputBus(string selectedDeviceId)
         {
@@ -153,14 +250,7 @@ public sealed class NaudioPlaybackRoutingTests
 
         public Exception? StartError { get; init; }
 
-        public IReadOnlyList<AudioOutputDevice> GetOutputDevices() =>
-        [
-            AudioOutputDevice.FollowWindowsDefault,
-            new AudioOutputDevice("default-device", "Default", true),
-            new AudioOutputDevice("live-device", "Live"),
-            new AudioOutputDevice("monitor-device", "Monitor"),
-            new AudioOutputDevice("same-device", "Same")
-        ];
+        public IReadOnlyList<AudioOutputDevice> GetOutputDevices() => _devices.ToArray();
 
         public void SelectOutputDevice(string deviceId) => SelectedOutputDeviceId = deviceId;
 
@@ -225,6 +315,39 @@ public sealed class NaudioPlaybackRoutingTests
 
         public MasterOutputLevel GetMasterOutputLevel() => OutputLevel;
 
+        public OutputDeviceRecoveryResult HandleOutputDeviceChange(
+            AudioOutputDeviceChangeEventArgs change,
+            IReadOnlySet<string> availableDeviceIds)
+        {
+            var followsDefault = SelectedOutputDeviceId ==
+                                 AudioOutputDevice.FollowDefaultDeviceId;
+            var recoverSelection = !followsDefault &&
+                (change.Kind == AudioOutputDeviceChangeKind.OutputFailure ||
+                 !availableDeviceIds.Contains(SelectedOutputDeviceId));
+            var resetDefault = followsDefault &&
+                               change.Kind == AudioOutputDeviceChangeKind.DefaultChanged &&
+                               _active.Count > 0;
+            if (!recoverSelection && !resetDefault)
+            {
+                return OutputDeviceRecoveryResult.None;
+            }
+
+            var interrupted = _active.Count > 0;
+            StopAll();
+            if (recoverSelection)
+            {
+                SelectedOutputDeviceId = AudioOutputDevice.FollowDefaultDeviceId;
+            }
+
+            return new OutputDeviceRecoveryResult(recoverSelection, interrupted);
+        }
+
+        public void RemoveDevice(string deviceId) =>
+            _devices.RemoveAll(device => string.Equals(
+                device.Id,
+                deviceId,
+                StringComparison.OrdinalIgnoreCase));
+
         public void Complete(Guid playbackId) => Stop(playbackId);
 
         public void Fail(Guid playbackId, Exception error)
@@ -258,6 +381,18 @@ public sealed class NaudioPlaybackRoutingTests
                     playbackId,
                     sourceId,
                     _active.Count));
+        }
+    }
+
+    private sealed class FakeOutputDeviceWatcher : IAudioOutputDeviceWatcher
+    {
+        public event EventHandler<AudioOutputDeviceChangeEventArgs>? Changed;
+
+        public void Raise(AudioOutputDeviceChangeKind kind, string? deviceId = null) =>
+            Changed?.Invoke(this, new AudioOutputDeviceChangeEventArgs(kind, deviceId));
+
+        public void Dispose()
+        {
         }
     }
 }

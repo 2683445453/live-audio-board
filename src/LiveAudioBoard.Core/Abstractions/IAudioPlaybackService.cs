@@ -7,6 +7,8 @@ public interface IAudioPlaybackService : IDisposable
 {
     event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
 
+    event EventHandler<AudioOutputDevicesChangedEventArgs>? OutputDevicesChanged;
+
     int ActivePlaybackCount { get; }
 
     string SelectedOutputDeviceId { get; }

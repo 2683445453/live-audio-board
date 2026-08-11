@@ -87,6 +87,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
         ClipsView.Filter = MatchesCurrentFilter;
         _playbackService.StateChanged += OnPlaybackStateChanged;
+        _playbackService.OutputDevicesChanged += OnOutputDevicesChanged;
 
         foreach (var category in DefaultCategories)
         {
@@ -1213,10 +1214,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             SelectedOutputDevice = OutputDevices.FirstOrDefault(
-                                       device => device.Id == preferredLiveDeviceId) ??
+                                       device => string.Equals(
+                                           device.Id,
+                                           preferredLiveDeviceId,
+                                           StringComparison.OrdinalIgnoreCase)) ??
                                    OutputDevices.FirstOrDefault();
             SelectedMonitorOutputDevice = OutputDevices.FirstOrDefault(
-                                              device => device.Id == preferredMonitorDeviceId) ??
+                                              device => string.Equals(
+                                                  device.Id,
+                                                  preferredMonitorDeviceId,
+                                                  StringComparison.OrdinalIgnoreCase)) ??
                                           OutputDevices.FirstOrDefault();
             _playbackService.SelectOutputDevice(
                 SelectedOutputDevice?.Id ?? AudioOutputDevice.FollowDefaultDeviceId);
@@ -1510,6 +1517,56 @@ public partial class MainViewModel : ObservableObject, IDisposable
         });
     }
 
+    private void OnOutputDevicesChanged(
+        object? sender,
+        AudioOutputDevicesChangedEventArgs args)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        void ApplyChange()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            var liveDeviceId = _playbackService.SelectedOutputDeviceId;
+            var monitorDeviceId = _playbackService.SelectedMonitorOutputDeviceId;
+            RefreshOutputDevicesCore(liveDeviceId, monitorDeviceId);
+            _settings.OutputDeviceId = SelectedOutputDevice?.Id ??
+                                       AudioOutputDevice.FollowDefaultDeviceId;
+            _settings.MonitorOutputDeviceId = SelectedMonitorOutputDevice?.Id ??
+                                              AudioOutputDevice.FollowDefaultDeviceId;
+
+            if (args.LiveOutputRecoveredToDefault ||
+                args.MonitorOutputRecoveredToDefault)
+            {
+                _ = SaveSettingsSafelyAsync();
+                var recoveredOutputs = args.LiveOutputRecoveredToDefault &&
+                                       args.MonitorOutputRecoveredToDefault
+                    ? "直播和监听设备"
+                    : args.LiveOutputRecoveredToDefault
+                        ? "直播设备"
+                        : "监听设备";
+                StatusText = $"{recoveredOutputs}已失效，已自动回退到 Windows 默认输出" +
+                             (args.PlaybackInterrupted ? " · 受影响的播放已停止" : string.Empty);
+            }
+            else if (args.DefaultOutputChanged)
+            {
+                StatusText = "Windows 默认输出已切换，设备列表已刷新" +
+                             (args.PlaybackInterrupted ? " · 受影响的播放已停止" : string.Empty);
+            }
+        }
+
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            ApplyChange();
+        }
+        else
+        {
+            _ = dispatcher.BeginInvoke(ApplyChange);
+        }
+    }
+
     private async Task SaveSettingsSafelyAsync()
     {
         try
@@ -1533,6 +1590,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         _playbackService.StateChanged -= OnPlaybackStateChanged;
+        _playbackService.OutputDevicesChanged -= OnOutputDevicesChanged;
         _loudnessAnalysisCancellation?.Cancel();
         _loudnessAnalysisCancellation?.Dispose();
         _loudnessAnalysisCancellation = null;

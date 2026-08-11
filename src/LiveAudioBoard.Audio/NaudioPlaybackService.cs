@@ -11,28 +11,47 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
     private readonly object _gate = new();
     private readonly IPlaybackOutputBus _liveBus;
     private readonly IPlaybackOutputBus _monitorBus;
+    private readonly IAudioOutputDeviceWatcher? _deviceWatcher;
     private readonly Dictionary<Guid, RoutedPlaybackSession> _sessions = [];
     private bool _disposed;
 
     public NaudioPlaybackService()
-        : this(new SingleBusPlaybackService(), new SingleBusPlaybackService())
+        : this(
+            new SingleBusPlaybackService(),
+            new SingleBusPlaybackService(),
+            TryCreateDeviceWatcher())
     {
     }
 
     internal NaudioPlaybackService(
         IPlaybackOutputBus liveBus,
         IPlaybackOutputBus monitorBus)
+        : this(liveBus, monitorBus, null)
+    {
+    }
+
+    internal NaudioPlaybackService(
+        IPlaybackOutputBus liveBus,
+        IPlaybackOutputBus monitorBus,
+        IAudioOutputDeviceWatcher? deviceWatcher)
     {
         ArgumentNullException.ThrowIfNull(liveBus);
         ArgumentNullException.ThrowIfNull(monitorBus);
 
         _liveBus = liveBus;
         _monitorBus = monitorBus;
+        _deviceWatcher = deviceWatcher;
         _liveBus.StateChanged += OnBusStateChanged;
         _monitorBus.StateChanged += OnBusStateChanged;
+        if (_deviceWatcher is not null)
+        {
+            _deviceWatcher.Changed += OnOutputDeviceChanged;
+        }
     }
 
     public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
+
+    public event EventHandler<AudioOutputDevicesChangedEventArgs>? OutputDevicesChanged;
 
     public int ActivePlaybackCount
     {
@@ -401,6 +420,82 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
         {
             RaiseStateChanged(args.State, session, activeCount, args.Error);
         }
+
+        if (args.State == PlaybackState.Error)
+        {
+            RecoverFailedOutput(bus);
+        }
+    }
+
+    private void OnOutputDeviceChanged(
+        object? sender,
+        AudioOutputDeviceChangeEventArgs change)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        IReadOnlySet<string> availableDeviceIds;
+        try
+        {
+            availableDeviceIds = GetOutputDevices()
+                .Where(device => device.Id != AudioOutputDevice.FollowDefaultDeviceId)
+                .Select(device => device.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return;
+        }
+
+        try
+        {
+            var liveRecovery = _liveBus.HandleOutputDeviceChange(change, availableDeviceIds);
+            var monitorRecovery = _monitorBus.HandleOutputDeviceChange(change, availableDeviceIds);
+            OutputDevicesChanged?.Invoke(
+                this,
+                new AudioOutputDevicesChangedEventArgs(
+                    liveRecovery.SelectionRecoveredToDefault,
+                    monitorRecovery.SelectionRecoveredToDefault,
+                    liveRecovery.PlaybackInterrupted || monitorRecovery.PlaybackInterrupted,
+                    change.Kind == AudioOutputDeviceChangeKind.DefaultChanged));
+        }
+        catch (ObjectDisposedException)
+        {
+            // A device notification can race with application shutdown.
+        }
+    }
+
+    private void RecoverFailedOutput(OutputBus bus)
+    {
+        IReadOnlySet<string> availableDeviceIds;
+        try
+        {
+            availableDeviceIds = GetOutputDevices()
+                .Where(device => device.Id != AudioOutputDevice.FollowDefaultDeviceId)
+                .Select(device => device.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            availableDeviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var recovery = GetBus(bus).HandleOutputDeviceChange(
+            new AudioOutputDeviceChangeEventArgs(AudioOutputDeviceChangeKind.OutputFailure),
+            availableDeviceIds);
+        if (!recovery.SelectionRecoveredToDefault)
+        {
+            return;
+        }
+
+        OutputDevicesChanged?.Invoke(
+            this,
+            new AudioOutputDevicesChangedEventArgs(
+                liveOutputRecoveredToDefault: bus == OutputBus.Live,
+                monitorOutputRecoveredToDefault: bus == OutputBus.Monitor,
+                playbackInterrupted: true));
     }
 
     private void StopLegs(RoutedPlaybackSession session)
@@ -415,6 +510,19 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
     private IPlaybackOutputBus GetBus(OutputBus bus) =>
         bus == OutputBus.Live ? _liveBus : _monitorBus;
+
+    private static IAudioOutputDeviceWatcher? TryCreateDeviceWatcher()
+    {
+        try
+        {
+            return new WindowsAudioOutputDeviceWatcher();
+        }
+        catch
+        {
+            // Playback remains usable when the Windows notification service is unavailable.
+            return null;
+        }
+    }
 
     private void RaiseStateChanged(
         PlaybackState state,
@@ -445,6 +553,12 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
         _liveBus.StateChanged -= OnBusStateChanged;
         _monitorBus.StateChanged -= OnBusStateChanged;
+        if (_deviceWatcher is not null)
+        {
+            _deviceWatcher.Changed -= OnOutputDeviceChanged;
+            _deviceWatcher.Dispose();
+        }
+
         _liveBus.Dispose();
         _monitorBus.Dispose();
         GC.SuppressFinalize(this);

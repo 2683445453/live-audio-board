@@ -24,4 +24,15 @@ internal interface IPlaybackOutputBus : IDisposable
     IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress();
 
     MasterOutputLevel GetMasterOutputLevel();
+
+    OutputDeviceRecoveryResult HandleOutputDeviceChange(
+        AudioOutputDeviceChangeEventArgs change,
+        IReadOnlySet<string> availableDeviceIds);
+}
+
+internal sealed record OutputDeviceRecoveryResult(
+    bool SelectionRecoveredToDefault,
+    bool PlaybackInterrupted)
+{
+    public static OutputDeviceRecoveryResult None { get; } = new(false, false);
 }
