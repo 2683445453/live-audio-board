@@ -1,0 +1,99 @@
+# LiveAudioBoard 开发路线与功能建议
+
+## 产品目标
+
+LiveAudioBoard 是一款仅面向 Windows 的直播音频面板。核心使用路径是：导入或合法下载音频、分类整理、收藏或绑定热键，并稳定输出到 OBS、直播软件或指定音频设备。
+
+## 技术基线
+
+| 层 | 技术 | 约束 |
+|---|---|---|
+| 桌面界面 | C#、WPF、MVVM Toolkit | 当前使用 `net8.0-windows`；发布前升级 .NET 10 LTS |
+| 音频 | NAudio 2 稳定版、WASAPI 共享模式 | 先做单输出和可靠停止，再扩展混音与多设备 |
+| 数据 | SQLite、EF Core | 分类是逻辑关系；磁盘只保存一份媒体文件 |
+| 下载 | `IDownloadProvider` 适配器 | 只接合法直链、RSS 与授权 API，不绕过 DRM |
+| 发布 | Git、GitHub Actions、GitHub Releases、Velopack | 源码与用户媒体分离，标签使用 SemVer |
+
+## 分层边界
+
+- `LiveAudioBoard.App`：WPF 视图、ViewModel、Windows 文件选择和窗口行为。
+- `LiveAudioBoard.Core`：领域模型及播放、资料库、下载源接口，不依赖 WPF。
+- `LiveAudioBoard.Audio`：NAudio 解码、WASAPI 播放、设备枚举与后续混音。
+- `LiveAudioBoard.Infrastructure`：SQLite、文件资料库、设置、备份和日志。
+- `LiveAudioBoard.Providers`：直链、RSS、Freesound 等下载适配器。
+- `LiveAudioBoard.Tests`：领域规则、筛选、存储与播放状态测试。
+
+## 资料库存储
+
+默认根目录为 `%LOCALAPPDATA%\LiveAudioBoard`：
+
+```text
+LiveAudioBoard/
+├─ Media/       正式媒体文件（后续改为 SHA-256 内容寻址）
+├─ Downloads/   下载中的 .part 临时文件
+├─ Covers/      封面与波形缓存
+├─ Backups/     数据库备份
+└─ library.db   分类、收藏、标签、来源与播放设置
+```
+
+首个版本只记录用户选择的原始文件路径，下一里程碑加入“复制进资料库”和重复文件哈希检测。
+
+## 功能优先级
+
+### P0：可用于第一次直播验证
+
+- 音频导入、播放、停止全部和基础错误反馈。
+- 分类、搜索、收藏和 SQLite 持久化。
+- 输出设备选择、设备失效恢复。
+- 音效宫格、播放状态和 OBS 应用音频捕获说明。
+- 全局紧急停止热键。
+
+### P1：直播可靠性
+
+- 多音效并发混音、独占播放模式、淡入淡出和循环。
+- 全局热键编辑、冲突检测和防重复触发。
+- 非破坏性起止点、单曲音量、播放冷却时间。
+- 文件复制、SHA-256 去重、资料库备份和恢复。
+- 设备热插拔、崩溃日志与长时间播放压力测试。
+
+### P2：内容来源与发布
+
+- 直链/RSS 下载队列：进度、取消、重试、断点续传和 `.part` 文件。
+- Freesound OAuth2 适配器并保存作者、来源和许可证。
+- Internet Archive 等授权来源；平台适配器与播放核心隔离。
+- Velopack 安装和自动更新；GitHub 标签触发 Windows Release。
+
+## 直播音频路由
+
+首选让 OBS 使用“应用程序音频捕获”直接捕获 LiveAudioBoard，同时软件输出到主播监听设备。只接受麦克风输入的平台，使用 VB-CABLE 或 VoiceMeeter 等虚拟设备；自研虚拟声卡驱动不进入 MVP。
+
+## 界面规范落地
+
+- 背景固定为深墨夜景，使用月光蓝、深海蓝和少量香槟金光井。
+- 面板保持 5%–12% 中性白透明度，24px 大圆角和受光顶边。
+- 香槟金 `#E4B863` 仅用于主要动作、播放状态与焦点提示。
+- 禁用紫粉渐变、实心白/黑面板、快速过渡和小圆角。
+- WPF 没有网页 `backdrop-filter` 的等价实现；首版用多层半透明表面、方向高光、背景光井和颗粒层还原材质，后续评估 Windows Composition Acrylic。
+- 桌面首发最小窗口为 1080×640；键盘焦点、文本对比度和减少动画模式纳入验收。
+
+完整设计约束保存在 [UI_STYLE_REFERENCE.md](UI_STYLE_REFERENCE.md)。
+
+## Git 与发布规则
+
+- `main` 保持可构建；功能分支命名为 `feat/<name>`，修复使用 `fix/<name>`。
+- 提交采用 `feat:`、`fix:`、`docs:`、`test:`、`chore:` 前缀。
+- 每个可验证的小里程碑提交一次；版本使用 `v0.1.0`、`v0.2.0`、`v1.0.0`。
+- 不提交用户媒体、SQLite 数据库、下载缓存、日志、API 密钥和签名证书。
+- Push/PR 自动执行 restore、build、test；`v*` 标签构建 `win-x64` 安装包并上传 GitHub Release。
+
+## 当前迭代
+
+- [x] 技术路线与界面规范存档。
+- [x] 解决方案、分层项目、测试项目和 Git 仓库。
+- [x] 首版玻璃拟态主界面。
+- [x] 音频导入、SQLite 记录、搜索、收藏、播放和停止。
+- [ ] 输出设备选择与多音效混音。
+- [ ] 全局热键与紧急停止。
+- [ ] 资料库复制、去重与自动备份。
+- [ ] 第三方下载提供器。
+- [ ] GitHub Actions、安装包和远程仓库推送。

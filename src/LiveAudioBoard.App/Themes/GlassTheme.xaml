@@ -1,0 +1,288 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="InkColor">#0B1322</Color>
+    <Color x:Key="InkDeepColor">#060A13</Color>
+    <Color x:Key="ChampagneColor">#E4B863</Color>
+    <Color x:Key="ChampagneTextColor">#F3DCA8</Color>
+    <Color x:Key="MoonlightColor">#7C9CC4</Color>
+
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource InkColor}" />
+    <SolidColorBrush x:Key="GlassPanelBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="GlassPanelRaisedBrush" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="GlassButtonBrush" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="GlassInputBrush" Color="#0FFFFFFF" />
+    <SolidColorBrush x:Key="GlassHoverBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="#26FFFFFF" />
+    <SolidColorBrush x:Key="GlassBorderHoverBrush" Color="#59FFFFFF" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#CCFFFFFF" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#8CFFFFFF" />
+    <SolidColorBrush x:Key="ChampagneBrush" Color="{StaticResource ChampagneColor}" />
+    <SolidColorBrush x:Key="ChampagneTextBrush" Color="{StaticResource ChampagneTextColor}" />
+    <SolidColorBrush x:Key="MoonlightBrush" Color="{StaticResource MoonlightColor}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#F29A9A" />
+
+    <LinearGradientBrush x:Key="GlassSurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#1FFFFFFF" />
+        <GradientStop Offset="0.32" Color="#14FFFFFF" />
+        <GradientStop Offset="1" Color="#0A020610" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="PlayerSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#1FFFFFFF" />
+        <GradientStop Offset="0.5" Color="#14FFFFFF" />
+        <GradientStop Offset="1" Color="#12FFFFFF" />
+    </LinearGradientBrush>
+
+    <DrawingBrush x:Key="NoiseBrush"
+                  TileMode="Tile"
+                  Viewport="0,0,36,36"
+                  ViewportUnits="Absolute"
+                  Viewbox="0,0,36,36"
+                  ViewboxUnits="Absolute">
+        <DrawingBrush.Drawing>
+            <GeometryDrawing Brush="#BFFFFFFF">
+                <GeometryDrawing.Geometry>
+                    <GeometryGroup>
+                        <EllipseGeometry Center="3,5" RadiusX="0.45" RadiusY="0.45" />
+                        <EllipseGeometry Center="17,3" RadiusX="0.35" RadiusY="0.35" />
+                        <EllipseGeometry Center="31,8" RadiusX="0.4" RadiusY="0.4" />
+                        <EllipseGeometry Center="9,16" RadiusX="0.3" RadiusY="0.3" />
+                        <EllipseGeometry Center="25,19" RadiusX="0.45" RadiusY="0.45" />
+                        <EllipseGeometry Center="5,29" RadiusX="0.35" RadiusY="0.35" />
+                        <EllipseGeometry Center="20,33" RadiusX="0.4" RadiusY="0.4" />
+                        <EllipseGeometry Center="34,27" RadiusX="0.3" RadiusY="0.3" />
+                    </GeometryGroup>
+                </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+
+    <Style x:Key="GlassCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource GlassSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="24" />
+        <Setter Property="Padding" Value="22" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="38"
+                                  ShadowDepth="12"
+                                  Direction="270"
+                                  Opacity="0.48"
+                                  Color="#030712"
+                                  RenderingBias="Performance" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GlassButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource GlassButtonBrush}" />
+        <Setter Property="BorderBrush" Value="#33FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                        </Grid.RenderTransform>
+                        <Border x:Name="Surface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="16"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16"
+                                                  ShadowDepth="4"
+                                                  Direction="270"
+                                                  Opacity="0.42"
+                                                  Color="#030712"
+                                                  RenderingBias="Performance" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource GlassBorderHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="#66E4B863" />
+                            <Setter TargetName="Surface" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.97" ScaleY="0.97" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.42" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="AccentButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource GlassButtonStyle}">
+        <Setter Property="Background" Value="#26E4B863" />
+        <Setter Property="BorderBrush" Value="#66E4B863" />
+        <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+    </Style>
+
+    <Style x:Key="QuietButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource GlassButtonStyle}">
+        <Setter Property="Background" Value="#0FFFFFFF" />
+        <Setter Property="BorderBrush" Value="#1FFFFFFF" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="IconButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource GlassButtonStyle}">
+        <Setter Property="Width" Value="42" />
+        <Setter Property="MinHeight" Value="42" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="17" />
+    </Style>
+
+    <Style x:Key="WindowButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource GlassButtonStyle}">
+        <Setter Property="Width" Value="38" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="#08FFFFFF" />
+        <Setter Property="BorderBrush" Value="#12FFFFFF" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="NavButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource QuietButtonStyle}">
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="Margin" Value="0,3" />
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+
+    <Style x:Key="GlassTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource GlassInputBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource ChampagneBrush}" />
+        <Setter Property="SelectionBrush" Value="#66E4B863" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="42,11,14,11" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="InputSurface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="16">
+                        <Grid>
+                            <TextBlock Margin="15,0,0,1"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons"
+                                       FontSize="15"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="&#xE721;"
+                                       IsHitTestVisible="False" />
+                            <TextBlock x:Name="Watermark"
+                                       Margin="42,0,14,1"
+                                       VerticalAlignment="Center"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="搜索音频…"
+                                       Visibility="Collapsed"
+                                       IsHitTestVisible="False" />
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Watermark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="InputSurface" Property="Background" Value="#1AFFFFFF" />
+                            <Setter TargetName="InputSurface" Property="BorderBrush" Value="{StaticResource GlassBorderHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="InputSurface" Property="Background" Value="{StaticResource GlassButtonBrush}" />
+                            <Setter TargetName="InputSurface" Property="BorderBrush" Value="#66E4B863" />
+                            <Setter TargetName="InputSurface" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GlassProgressBarStyle" TargetType="ProgressBar">
+        <Setter Property="Height" Value="4" />
+        <Setter Property="Background" Value="#14FFFFFF" />
+        <Setter Property="Foreground" Value="{StaticResource MoonlightBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="2" />
+                        <Border x:Name="PART_Indicator"
+                                HorizontalAlignment="Left"
+                                Background="{TemplateBinding Foreground}"
+                                CornerRadius="2" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ScrollBar">
+        <Setter Property="Width" Value="6" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#33FFFFFF" />
+    </Style>
+
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="#E6121B2B" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+    </Style>
+</ResourceDictionary>

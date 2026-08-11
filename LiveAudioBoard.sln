@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.App", "src\LiveAudioBoard.App\LiveAudioBoard.App.csproj", "{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.Core", "src\LiveAudioBoard.Core\LiveAudioBoard.Core.csproj", "{42276EB6-682D-46D6-A49E-2D3F3B229444}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.Audio", "src\LiveAudioBoard.Audio\LiveAudioBoard.Audio.csproj", "{F68F74FD-8773-4E1D-B59D-91259E067520}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.Infrastructure", "src\LiveAudioBoard.Infrastructure\LiveAudioBoard.Infrastructure.csproj", "{6972BB8A-DA5F-4010-A02D-26EC2743E846}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.Providers", "src\LiveAudioBoard.Providers\LiveAudioBoard.Providers.csproj", "{C8124EEA-AF03-4546-83FC-6003239DDD81}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B23F034E-C53F-4F3C-AB09-220E71109F63}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LiveAudioBoard.Tests", "tests\LiveAudioBoard.Tests\LiveAudioBoard.Tests.csproj", "{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{42276EB6-682D-46D6-A49E-2D3F3B229444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{42276EB6-682D-46D6-A49E-2D3F3B229444}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{42276EB6-682D-46D6-A49E-2D3F3B229444}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{42276EB6-682D-46D6-A49E-2D3F3B229444}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F68F74FD-8773-4E1D-B59D-91259E067520}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F68F74FD-8773-4E1D-B59D-91259E067520}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F68F74FD-8773-4E1D-B59D-91259E067520}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F68F74FD-8773-4E1D-B59D-91259E067520}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6972BB8A-DA5F-4010-A02D-26EC2743E846}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6972BB8A-DA5F-4010-A02D-26EC2743E846}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6972BB8A-DA5F-4010-A02D-26EC2743E846}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6972BB8A-DA5F-4010-A02D-26EC2743E846}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8124EEA-AF03-4546-83FC-6003239DDD81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8124EEA-AF03-4546-83FC-6003239DDD81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8124EEA-AF03-4546-83FC-6003239DDD81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8124EEA-AF03-4546-83FC-6003239DDD81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DD8443B2-64DC-4A5C-9EFE-A5B49CDA75F2} = {EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}
+		{42276EB6-682D-46D6-A49E-2D3F3B229444} = {EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}
+		{F68F74FD-8773-4E1D-B59D-91259E067520} = {EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}
+		{6972BB8A-DA5F-4010-A02D-26EC2743E846} = {EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}
+		{C8124EEA-AF03-4546-83FC-6003239DDD81} = {EFC4FD5E-74D4-4F2C-B354-5F199E25F0B7}
+		{E35F4DCF-8E5F-4F72-AA77-AA49D36D368E} = {B23F034E-C53F-4F3C-AB09-220E71109F63}
+	EndGlobalSection
+EndGlobal

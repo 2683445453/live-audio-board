@@ -1,0 +1,30 @@
+# Build output
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local application data and generated media
+Library/
+Media/
+Downloads/
+Backups/
+Releases/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Secrets
+.env
+appsettings.Local.json
+*.pfx
+*.snk
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+

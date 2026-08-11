@@ -1,0 +1,603 @@
+<Window x:Class="LiveAudioBoard.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        mc:Ignorable="d"
+        Title="LiveAudioBoard"
+        Width="1240"
+        Height="700"
+        MinWidth="1080"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        Background="{StaticResource WindowBackgroundBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="Microsoft YaHei UI"
+        TextOptions.TextFormattingMode="Display">
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            ResizeBorderThickness="8"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Grid Background="{StaticResource WindowBackgroundBrush}" ClipToBounds="True">
+        <!-- Deep nocturne scene and restrained light wells. -->
+        <Rectangle>
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Offset="0" Color="#060A13" />
+                    <GradientStop Offset="0.5" Color="#0B1322" />
+                    <GradientStop Offset="1" Color="#08111F" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <Ellipse Width="760"
+                 Height="620"
+                 HorizontalAlignment="Right"
+                 VerticalAlignment="Top"
+                 Margin="0,-280,-260,0"
+                 IsHitTestVisible="False">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Offset="0" Color="#527C9CC4" />
+                    <GradientStop Offset="0.58" Color="#1F7C9CC4" />
+                    <GradientStop Offset="1" Color="#007C9CC4" />
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+            <Ellipse.Effect>
+                <BlurEffect Radius="85" RenderingBias="Performance" />
+            </Ellipse.Effect>
+        </Ellipse>
+
+        <Ellipse Width="620"
+                 Height="540"
+                 HorizontalAlignment="Left"
+                 VerticalAlignment="Bottom"
+                 Margin="-260,0,0,-250"
+                 IsHitTestVisible="False">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Offset="0" Color="#5933517A" />
+                    <GradientStop Offset="0.6" Color="#2433517A" />
+                    <GradientStop Offset="1" Color="#0033517A" />
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+            <Ellipse.Effect>
+                <BlurEffect Radius="95" RenderingBias="Performance" />
+            </Ellipse.Effect>
+        </Ellipse>
+
+        <Ellipse Width="380"
+                 Height="280"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 Margin="120,-80,0,0"
+                 Opacity="0.65"
+                 IsHitTestVisible="False">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Offset="0" Color="#1FE4B863" />
+                    <GradientStop Offset="1" Color="#00E4B863" />
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+            <Ellipse.Effect>
+                <BlurEffect Radius="78" RenderingBias="Performance" />
+            </Ellipse.Effect>
+        </Ellipse>
+
+        <Rectangle Fill="{StaticResource NoiseBrush}"
+                   Opacity="0.025"
+                   IsHitTestVisible="False" />
+
+        <Grid Margin="18,12,18,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="106" />
+                <RowDefinition Height="26" />
+            </Grid.RowDefinitions>
+
+            <!-- Custom title bar -->
+            <Grid Grid.Row="0"
+                  Background="Transparent"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="34"
+                            Height="34"
+                            CornerRadius="13"
+                            Background="#26E4B863"
+                            BorderBrush="#66E4B863"
+                            BorderThickness="1">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource ChampagneTextBrush}"
+                                   FontFamily="Segoe UI Symbol"
+                                   FontSize="17"
+                                   Text="♫" />
+                    </Border>
+                    <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                        <TextBlock FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="LiveAudioBoard" />
+                        <TextBlock Margin="0,1,0,0"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="Windows 直播音频面板" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource WindowButtonStyle}"
+                            Content="&#xE921;"
+                            ToolTip="最小化"
+                            Click="MinimizeButton_Click" />
+                    <Button x:Name="MaximizeButton"
+                            Margin="5,0,0,0"
+                            Style="{StaticResource WindowButtonStyle}"
+                            Content="&#xE922;"
+                            ToolTip="最大化"
+                            Click="MaximizeButton_Click" />
+                    <Button Margin="5,0,0,0"
+                            Style="{StaticResource WindowButtonStyle}"
+                            Foreground="{StaticResource DangerBrush}"
+                            Content="&#xE8BB;"
+                            ToolTip="关闭"
+                            Click="CloseButton_Click" />
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="276" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Library navigation -->
+                <Border Grid.Column="0"
+                        Style="{StaticResource GlassCardStyle}"
+                        Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Margin="10,6,10,10"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="资料库" />
+
+                        <StackPanel Grid.Row="1">
+                            <Button Style="{StaticResource NavButtonStyle}"
+                                    Command="{Binding ShowAllCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Width="28"
+                                               FontFamily="Segoe Fluent Icons"
+                                               FontSize="16"
+                                               Text="&#xE8A9;" />
+                                    <TextBlock Text="全部音频" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource NavButtonStyle}"
+                                    Command="{Binding ShowFavoritesCommand}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Width="28"
+                                               FontFamily="Segoe UI Symbol"
+                                               FontSize="16"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="☆" />
+                                    <TextBlock Text="我的收藏" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="2"
+                                   Margin="10,22,10,8"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="分类" />
+
+                        <ScrollViewer Grid.Row="3"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Categories}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource NavButtonStyle}"
+                                                Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Width="28"
+                                                           FontFamily="Segoe Fluent Icons"
+                                                           FontSize="14"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Text="&#xE8B7;" />
+                                                <TextBlock Text="{Binding}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button Grid.Row="4"
+                                Margin="0,12,0,0"
+                                Style="{StaticResource QuietButtonStyle}"
+                                HorizontalContentAlignment="Center"
+                                Command="{Binding OpenHotkeyCenterCommand}"
+                                Content="热键中心" />
+                    </Grid>
+                </Border>
+
+                <!-- Main sound board -->
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="240" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontSize="25"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding SelectedCategory}" />
+                            <TextBlock Margin="0,3,0,0"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding ResultSummary}" />
+                        </StackPanel>
+
+                        <TextBox Grid.Column="1"
+                                 Height="44"
+                                 VerticalAlignment="Center"
+                                 Style="{StaticResource GlassTextBoxStyle}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="按标题、分类或路径搜索" />
+
+                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding OpenDownloadCenterCommand}"
+                                    Content="下载音频" />
+                            <Button Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding ImportAudioCommand}"
+                                    Content="＋  导入音频" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding ClipsView}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="226"
+                                                Height="162"
+                                                Margin="0,0,12,12"
+                                                Padding="18">
+                                            <Border.Style>
+                                                <Style TargetType="Border" BasedOn="{StaticResource GlassCardStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#8CE4B863" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <Grid>
+                                                    <TextBlock FontFamily="Segoe UI Symbol"
+                                                               FontSize="25"
+                                                               Foreground="{StaticResource MoonlightBrush}"
+                                                               Text="{Binding CategoryGlyph}" />
+                                                    <Button Width="34"
+                                                            Height="34"
+                                                            HorizontalAlignment="Right"
+                                                            Style="{StaticResource QuietButtonStyle}"
+                                                            Padding="0"
+                                                            FontFamily="Segoe UI Symbol"
+                                                            FontSize="16"
+                                                            Foreground="{StaticResource ChampagneTextBrush}"
+                                                            Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{Binding FavoriteGlyph}"
+                                                            ToolTip="收藏或取消收藏" />
+                                                </Grid>
+
+                                                <StackPanel Grid.Row="1" Margin="0,8,0,8" VerticalAlignment="Center">
+                                                    <TextBlock FontSize="15"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Text="{Binding Title}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,5,0,0"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                        <Run Text="{Binding Category}" />
+                                                        <Run Text="  ·  " />
+                                                        <Run Text="{Binding DurationText}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+
+                                                <Grid Grid.Row="2">
+                                                    <TextBlock VerticalAlignment="Center"
+                                                               FontFamily="Cascadia Mono"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Text="{Binding HotkeyText}" />
+                                                    <Button Width="66"
+                                                            Height="34"
+                                                            HorizontalAlignment="Right"
+                                                            Style="{StaticResource QuietButtonStyle}"
+                                                            Padding="8,4"
+                                                            Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{Binding PlayActionText}" />
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasNoResults}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <StackPanel Width="360"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <TextBlock HorizontalAlignment="Center"
+                                           FontFamily="Segoe UI Symbol"
+                                           FontSize="48"
+                                           Foreground="{StaticResource MoonlightBrush}"
+                                           Text="♫" />
+                                <TextBlock Margin="0,16,0,0"
+                                           HorizontalAlignment="Center"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Text="这里还很安静" />
+                                <TextBlock Margin="0,8,0,18"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           FontSize="12"
+                                           LineHeight="20"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="导入音频后即可分类、收藏，并通过 WASAPI 在直播中稳定播放。" />
+                                <Button Width="136"
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding ImportAudioCommand}"
+                                        Content="导入第一段音频" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <!-- Stream queue and routing summary -->
+                <Border Grid.Column="4"
+                        Style="{StaticResource GlassCardStyle}"
+                        Padding="20">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="1" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <TextBlock FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="直播队列" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="0 待播放" />
+                        </Grid>
+
+                        <StackPanel Grid.Row="1" Margin="0,24,0,22">
+                            <TextBlock FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="当前音频" />
+                            <TextBlock Margin="0,8,0,0"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding NowPlayingTitle}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Margin="0,5,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="{Binding NowPlayingSubtitle}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Rectangle Grid.Row="2" Fill="#1FFFFFFF" />
+
+                        <StackPanel Grid.Row="3" Margin="0,22,0,0">
+                            <TextBlock FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="音频路由" />
+                            <Grid Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock FontSize="13"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Text="默认输出设备" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="WASAPI · 共享模式" />
+                                </StackPanel>
+                                <Ellipse Width="8"
+                                         Height="8"
+                                         HorizontalAlignment="Right"
+                                         VerticalAlignment="Center"
+                                         Fill="{StaticResource ChampagneBrush}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="4" Margin="0,28,0,0">
+                            <TextBlock FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="OBS 设置提示" />
+                            <TextBlock Margin="0,9,0,0"
+                                       FontSize="11"
+                                       LineHeight="19"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       Text="在 OBS 中添加“应用程序音频捕获”，并选择 LiveAudioBoard，即可单独控制直播音量。" />
+                        </StackPanel>
+
+                        <Button Grid.Row="5"
+                                Style="{StaticResource QuietButtonStyle}"
+                                Foreground="{StaticResource ChampagneTextBrush}"
+                                Command="{Binding StopAllCommand}"
+                                Content="停止全部播放" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Persistent player strip -->
+            <Border Grid.Row="2"
+                    Margin="0,14,0,0"
+                    Style="{StaticResource GlassCardStyle}"
+                    Background="{StaticResource PlayerSurfaceBrush}"
+                    Padding="20,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="{Binding NowPlayingTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Margin="0,5,0,0"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="{Binding NowPlayingSubtitle}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                            <Button Style="{StaticResource IconButtonStyle}"
+                                    Command="{Binding StopAllCommand}"
+                                    Content="■"
+                                    ToolTip="停止全部" />
+                            <Button Margin="10,0,0,0"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Width="74"
+                                    Command="{Binding PlayCommand}"
+                                    CommandParameter="{Binding SelectedClip}"
+                                    Content="播放" />
+                        </StackPanel>
+                        <ProgressBar Width="220"
+                                     Margin="0,11,0,0"
+                                     Maximum="100"
+                                     Value="35">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar" BasedOn="{StaticResource GlassProgressBarStyle}">
+                                    <Setter Property="Opacity" Value="0.25" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                            <Setter Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Right"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="输出设备" />
+                        <TextBlock Margin="0,5,0,0"
+                                   HorizontalAlignment="Right"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="Windows 默认输出" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="3" Margin="8,7,8,0">
+                <TextBlock FontSize="10"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Text="{Binding StatusText}" />
+                <TextBlock HorizontalAlignment="Right"
+                           FontSize="10"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Text="MVP 0.1 · 本地资料库" />
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

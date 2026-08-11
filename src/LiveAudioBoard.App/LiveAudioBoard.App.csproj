@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\LiveAudioBoard.Core\LiveAudioBoard.Core.csproj" />
+    <ProjectReference Include="..\LiveAudioBoard.Audio\LiveAudioBoard.Audio.csproj" />
+    <ProjectReference Include="..\LiveAudioBoard.Infrastructure\LiveAudioBoard.Infrastructure.csproj" />
+    <ProjectReference Include="..\LiveAudioBoard.Providers\LiveAudioBoard.Providers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>
