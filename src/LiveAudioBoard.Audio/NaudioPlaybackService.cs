@@ -1,125 +1,542 @@
 using LiveAudioBoard.Core.Abstractions;
+using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
-using CorePlaybackState = LiveAudioBoard.Core.Playback.PlaybackState;
 
 namespace LiveAudioBoard.Audio;
 
 public sealed class NaudioPlaybackService : IAudioPlaybackService
 {
+    private const int MaximumConcurrentSessions = 32;
+
     private readonly object _gate = new();
-    private WasapiOut? _output;
-    private AudioFileReader? _reader;
+    private readonly IPlaybackOutputBus _liveBus;
+    private readonly IPlaybackOutputBus _monitorBus;
+    private readonly IAudioOutputDeviceWatcher? _deviceWatcher;
+    private readonly Dictionary<Guid, RoutedPlaybackSession> _sessions = [];
     private bool _disposed;
+
+    public NaudioPlaybackService()
+        : this(
+            new SingleBusPlaybackService(),
+            new SingleBusPlaybackService(),
+            TryCreateDeviceWatcher())
+    {
+    }
+
+    internal NaudioPlaybackService(
+        IPlaybackOutputBus liveBus,
+        IPlaybackOutputBus monitorBus)
+        : this(liveBus, monitorBus, null)
+    {
+    }
+
+    internal NaudioPlaybackService(
+        IPlaybackOutputBus liveBus,
+        IPlaybackOutputBus monitorBus,
+        IAudioOutputDeviceWatcher? deviceWatcher)
+    {
+        ArgumentNullException.ThrowIfNull(liveBus);
+        ArgumentNullException.ThrowIfNull(monitorBus);
+
+        _liveBus = liveBus;
+        _monitorBus = monitorBus;
+        _deviceWatcher = deviceWatcher;
+        _liveBus.StateChanged += OnBusStateChanged;
+        _monitorBus.StateChanged += OnBusStateChanged;
+        if (_deviceWatcher is not null)
+        {
+            _deviceWatcher.Changed += OnOutputDeviceChanged;
+        }
+    }
 
     public event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
 
-    public string? CurrentFilePath { get; private set; }
+    public event EventHandler<AudioOutputDevicesChangedEventArgs>? OutputDevicesChanged;
 
-    public void Play(string filePath, double volume = 1d)
+    public int ActivePlaybackCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _sessions.Count;
+            }
+        }
+    }
+
+    public string SelectedOutputDeviceId => _liveBus.SelectedOutputDeviceId;
+
+    public string SelectedMonitorOutputDeviceId => _monitorBus.SelectedOutputDeviceId;
+
+    public IReadOnlyList<AudioOutputDevice> GetOutputDevices()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _liveBus.GetOutputDevices();
+    }
+
+    public void SelectOutputDevice(string deviceId) =>
+        SelectBusDevice(OutputBus.Live, deviceId);
+
+    public void SelectMonitorOutputDevice(string deviceId) =>
+        SelectBusDevice(OutputBus.Monitor, deviceId);
+
+    public Guid Play(string filePath, double volume = 1d) =>
+        Play(filePath, new AudioPlaybackOptions(Volume: volume));
+
+    public Guid Play(string filePath, AudioPlaybackOptions options)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentNullException.ThrowIfNull(options);
 
-        if (!File.Exists(filePath))
+        var normalized = options.Normalize();
+        return PlayRouted(
+            filePath,
+            normalized,
+            (bus, playbackId, legOptions) =>
+                bus.PlayWithId(playbackId, filePath, legOptions));
+    }
+
+    public Guid PlayRemote(Uri source, double volume = 1d)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (!source.IsAbsoluteUri ||
+            (source.Scheme != Uri.UriSchemeHttp && source.Scheme != Uri.UriSchemeHttps))
         {
-            throw new FileNotFoundException("音频文件不存在。", filePath);
+            throw new ArgumentException(
+                "试听地址必须是 HTTP 或 HTTPS 绝对地址。",
+                nameof(source));
+        }
+
+        var options = new AudioPlaybackOptions(
+            Volume: volume,
+            Route: AudioPlaybackRoute.MonitorOnly).Normalize();
+        return PlayRouted(
+            source.AbsoluteUri,
+            options,
+            (bus, playbackId, legOptions) =>
+                bus.PlayRemoteWithId(playbackId, source, legOptions.Volume));
+    }
+
+    public bool Stop(Guid playbackId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        RoutedPlaybackSession? session;
+        int activeCount;
+        lock (_gate)
+        {
+            if (!_sessions.Remove(playbackId, out session))
+            {
+                return false;
+            }
+
+            activeCount = _sessions.Count;
+        }
+
+        StopLegs(session);
+        RaiseStateChanged(
+            PlaybackState.Stopped,
+            session,
+            activeCount);
+        return true;
+    }
+
+    public void StopAll()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        RoutedPlaybackSession[] sessions;
+        lock (_gate)
+        {
+            sessions = _sessions.Values.ToArray();
+            _sessions.Clear();
+        }
+
+        _liveBus.StopAll();
+        _monitorBus.StopAll();
+        foreach (var session in sessions)
+        {
+            RaiseStateChanged(PlaybackState.Stopped, session, 0);
+        }
+    }
+
+    public IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        RoutedPlaybackSession[] sessions;
+        lock (_gate)
+        {
+            sessions = _sessions.Values.ToArray();
+        }
+
+        var liveProgress = _liveBus.GetActivePlaybackProgress()
+            .ToDictionary(item => item.PlaybackId);
+        var monitorProgress = _monitorBus.GetActivePlaybackProgress()
+            .ToDictionary(item => item.PlaybackId);
+        return sessions
+            .Select(session =>
+                liveProgress.GetValueOrDefault(session.Id) ??
+                monitorProgress.GetValueOrDefault(session.Id))
+            .Where(progress => progress is not null)
+            .Select(progress => progress!)
+            .ToArray();
+    }
+
+    public MasterOutputLevel GetMasterOutputLevel()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _liveBus.GetMasterOutputLevel();
+    }
+
+    private Guid PlayRouted(
+        string sourceId,
+        AudioPlaybackOptions options,
+        Func<IPlaybackOutputBus, Guid, AudioPlaybackOptions, Guid> startLeg)
+    {
+        if (options.Exclusive)
+        {
+            StopAll();
+        }
+
+        var targets = ResolveTargets(options.Route);
+        var buses = GetTargetBuses(targets);
+        var playbackId = Guid.NewGuid();
+        var session = new RoutedPlaybackSession(
+            playbackId,
+            sourceId,
+            [.. buses],
+            isStarting: true);
+
+        lock (_gate)
+        {
+            if (_sessions.Count >= MaximumConcurrentSessions)
+            {
+                throw new InvalidOperationException(
+                    $"同时播放数量已达到上限（{MaximumConcurrentSessions} 路）。");
+            }
+
+            _sessions.Add(playbackId, session);
         }
 
         try
         {
-            lock (_gate)
+            var legOptions = options with { Exclusive = false };
+            foreach (var bus in buses)
             {
-                DisposeCurrentPlayback();
-
-                _reader = new AudioFileReader(filePath)
-                {
-                    Volume = (float)Math.Clamp(volume, 0d, 1d)
-                };
-
-                _output = new WasapiOut(AudioClientShareMode.Shared, true, 100);
-                _output.PlaybackStopped += OnPlaybackStopped;
-                _output.Init(_reader);
-                CurrentFilePath = filePath;
-                _output.Play();
+                ThrowIfStartFailed(session);
+                startLeg(GetBus(bus), playbackId, legOptions);
+                ThrowIfStartFailed(session);
             }
-
-            StateChanged?.Invoke(
-                this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Playing, filePath));
         }
         catch (Exception exception)
         {
+            int activeCount;
             lock (_gate)
             {
-                DisposeCurrentPlayback();
+                _sessions.Remove(playbackId);
+                activeCount = _sessions.Count;
             }
 
-            StateChanged?.Invoke(
-                this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Error, filePath, exception));
+            StopLegs(session);
+            RaiseStateChanged(PlaybackState.Error, session, activeCount, exception);
             throw;
+        }
+
+        PlaybackState? pendingState;
+        Exception? pendingError;
+        int playingCount;
+        int completedCount;
+        lock (_gate)
+        {
+            session.IsStarting = false;
+            playingCount = _sessions.Count;
+            pendingState = session.PendingState;
+            pendingError = session.PendingError;
+            if (session.ActiveBuses.Count == 0)
+            {
+                pendingState ??= PlaybackState.Stopped;
+                _sessions.Remove(playbackId);
+            }
+
+            completedCount = _sessions.Count;
+        }
+
+        RaiseStateChanged(PlaybackState.Playing, session, playingCount);
+        if (pendingState.HasValue)
+        {
+            RaiseStateChanged(pendingState.Value, session, completedCount, pendingError);
+        }
+
+        return playbackId;
+    }
+
+    private AudioPlaybackBusTargets ResolveTargets(AudioPlaybackRoute route)
+    {
+        string? defaultDeviceId = null;
+        try
+        {
+            defaultDeviceId = GetOutputDevices()
+                .FirstOrDefault(device =>
+                    device.IsCurrentDefault &&
+                    device.Id != AudioOutputDevice.FollowDefaultDeviceId)
+                ?.Id;
+        }
+        catch
+        {
+            // If enumeration fails, identical configured IDs can still be deduplicated.
+        }
+
+        return AudioPlaybackRouteResolver.Resolve(
+            route,
+            SelectedOutputDeviceId,
+            SelectedMonitorOutputDeviceId,
+            defaultDeviceId);
+    }
+
+    private static OutputBus[] GetTargetBuses(AudioPlaybackBusTargets targets)
+    {
+        var buses = new List<OutputBus>(2);
+        if (targets.Live)
+        {
+            buses.Add(OutputBus.Live);
+        }
+
+        if (targets.Monitor)
+        {
+            buses.Add(OutputBus.Monitor);
+        }
+
+        return [.. buses];
+    }
+
+    private void ThrowIfStartFailed(RoutedPlaybackSession session)
+    {
+        lock (_gate)
+        {
+            if (session.PendingState == PlaybackState.Error)
+            {
+                throw session.PendingError ??
+                      new InvalidOperationException("音频输出总线启动失败。");
+            }
         }
     }
 
-    public void Stop()
+    private void SelectBusDevice(OutputBus bus, string deviceId)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        string? stoppedPath;
-        lock (_gate)
+        var normalizedId = string.IsNullOrWhiteSpace(deviceId)
+            ? AudioOutputDevice.FollowDefaultDeviceId
+            : deviceId;
+        var target = GetBus(bus);
+        if (string.Equals(
+                target.SelectedOutputDeviceId,
+                normalizedId,
+                StringComparison.Ordinal))
         {
-            stoppedPath = CurrentFilePath;
-            DisposeCurrentPlayback();
+            return;
         }
 
-        if (stoppedPath is not null)
+        if (normalizedId != AudioOutputDevice.FollowDefaultDeviceId &&
+            !GetOutputDevices().Any(device => device.Id == normalizedId))
         {
-            StateChanged?.Invoke(
-                this,
-                new PlaybackStateChangedEventArgs(CorePlaybackState.Stopped, stoppedPath));
+            throw new InvalidOperationException("所选音频输出设备当前不可用。");
         }
+
+        StopAll();
+        target.SelectOutputDevice(normalizedId);
     }
 
-    private void OnPlaybackStopped(object? sender, StoppedEventArgs args)
+    private void OnBusStateChanged(object? sender, PlaybackStateChangedEventArgs args)
     {
-        string? stoppedPath;
+        if (args.PlaybackId == Guid.Empty || args.State == PlaybackState.Playing)
+        {
+            return;
+        }
+
+        var bus = ReferenceEquals(sender, _liveBus)
+            ? OutputBus.Live
+            : OutputBus.Monitor;
+        RoutedPlaybackSession? session;
+        HashSet<OutputBus>? remainingBusesToStop = null;
+        var shouldRaise = false;
+        int activeCount;
+
         lock (_gate)
         {
-            if (!ReferenceEquals(sender, _output))
+            if (!_sessions.TryGetValue(args.PlaybackId, out session) ||
+                !session.ActiveBuses.Remove(bus))
             {
                 return;
             }
 
-            stoppedPath = CurrentFilePath;
-            DisposeCurrentPlayback();
+            if (args.State == PlaybackState.Error)
+            {
+                remainingBusesToStop = [.. session.ActiveBuses];
+                session.ActiveBuses.Clear();
+                if (session.IsStarting)
+                {
+                    session.PendingState = PlaybackState.Error;
+                    session.PendingError = args.Error;
+                }
+                else
+                {
+                    _sessions.Remove(session.Id);
+                    shouldRaise = true;
+                }
+            }
+            else if (session.ActiveBuses.Count == 0)
+            {
+                if (session.IsStarting)
+                {
+                    if (session.PendingState != PlaybackState.Error)
+                    {
+                        session.PendingState = PlaybackState.Stopped;
+                    }
+                }
+                else
+                {
+                    _sessions.Remove(session.Id);
+                    shouldRaise = true;
+                }
+            }
+
+            activeCount = _sessions.Count;
         }
 
-        var state = args.Exception is null ? CorePlaybackState.Stopped : CorePlaybackState.Error;
+        if (remainingBusesToStop is not null)
+        {
+            foreach (var remainingBus in remainingBusesToStop)
+            {
+                GetBus(remainingBus).Stop(args.PlaybackId);
+            }
+        }
+
+        if (shouldRaise && session is not null)
+        {
+            RaiseStateChanged(args.State, session, activeCount, args.Error);
+        }
+
+        if (args.State == PlaybackState.Error)
+        {
+            RecoverFailedOutput(bus);
+        }
+    }
+
+    private void OnOutputDeviceChanged(
+        object? sender,
+        AudioOutputDeviceChangeEventArgs change)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        IReadOnlySet<string> availableDeviceIds;
+        try
+        {
+            availableDeviceIds = GetOutputDevices()
+                .Where(device => device.Id != AudioOutputDevice.FollowDefaultDeviceId)
+                .Select(device => device.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return;
+        }
+
+        try
+        {
+            var liveRecovery = _liveBus.HandleOutputDeviceChange(change, availableDeviceIds);
+            var monitorRecovery = _monitorBus.HandleOutputDeviceChange(change, availableDeviceIds);
+            OutputDevicesChanged?.Invoke(
+                this,
+                new AudioOutputDevicesChangedEventArgs(
+                    liveRecovery.SelectionRecoveredToDefault,
+                    monitorRecovery.SelectionRecoveredToDefault,
+                    liveRecovery.PlaybackInterrupted || monitorRecovery.PlaybackInterrupted,
+                    change.Kind == AudioOutputDeviceChangeKind.DefaultChanged));
+        }
+        catch (ObjectDisposedException)
+        {
+            // A device notification can race with application shutdown.
+        }
+    }
+
+    private void RecoverFailedOutput(OutputBus bus)
+    {
+        IReadOnlySet<string> availableDeviceIds;
+        try
+        {
+            availableDeviceIds = GetOutputDevices()
+                .Where(device => device.Id != AudioOutputDevice.FollowDefaultDeviceId)
+                .Select(device => device.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            availableDeviceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var recovery = GetBus(bus).HandleOutputDeviceChange(
+            new AudioOutputDeviceChangeEventArgs(AudioOutputDeviceChangeKind.OutputFailure),
+            availableDeviceIds);
+        if (!recovery.SelectionRecoveredToDefault)
+        {
+            return;
+        }
+
+        OutputDevicesChanged?.Invoke(
+            this,
+            new AudioOutputDevicesChangedEventArgs(
+                liveOutputRecoveredToDefault: bus == OutputBus.Live,
+                monitorOutputRecoveredToDefault: bus == OutputBus.Monitor,
+                playbackInterrupted: true));
+    }
+
+    private void StopLegs(RoutedPlaybackSession session)
+    {
+        var buses = session.ActiveBuses.ToArray();
+        session.ActiveBuses.Clear();
+        foreach (var bus in buses)
+        {
+            GetBus(bus).Stop(session.Id);
+        }
+    }
+
+    private IPlaybackOutputBus GetBus(OutputBus bus) =>
+        bus == OutputBus.Live ? _liveBus : _monitorBus;
+
+    private static IAudioOutputDeviceWatcher? TryCreateDeviceWatcher()
+    {
+        try
+        {
+            return new WindowsAudioOutputDeviceWatcher();
+        }
+        catch
+        {
+            // Playback remains usable when the Windows notification service is unavailable.
+            return null;
+        }
+    }
+
+    private void RaiseStateChanged(
+        PlaybackState state,
+        RoutedPlaybackSession session,
+        int activeCount,
+        Exception? exception = null) =>
         StateChanged?.Invoke(
             this,
-            new PlaybackStateChangedEventArgs(state, stoppedPath, args.Exception));
-    }
-
-    private void DisposeCurrentPlayback()
-    {
-        var output = _output;
-        var reader = _reader;
-
-        _output = null;
-        _reader = null;
-        CurrentFilePath = null;
-
-        if (output is not null)
-        {
-            output.PlaybackStopped -= OnPlaybackStopped;
-            output.Stop();
-            output.Dispose();
-        }
-
-        reader?.Dispose();
-    }
+            new PlaybackStateChangedEventArgs(
+                state,
+                session.Id,
+                session.SourceId,
+                activeCount,
+                exception));
 
     public void Dispose()
     {
@@ -130,10 +547,53 @@ public sealed class NaudioPlaybackService : IAudioPlaybackService
 
         lock (_gate)
         {
-            DisposeCurrentPlayback();
+            _sessions.Clear();
             _disposed = true;
         }
 
+        _liveBus.StateChanged -= OnBusStateChanged;
+        _monitorBus.StateChanged -= OnBusStateChanged;
+        if (_deviceWatcher is not null)
+        {
+            _deviceWatcher.Changed -= OnOutputDeviceChanged;
+            _deviceWatcher.Dispose();
+        }
+
+        _liveBus.Dispose();
+        _monitorBus.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private enum OutputBus
+    {
+        Live,
+        Monitor
+    }
+
+    private sealed class RoutedPlaybackSession
+    {
+        public RoutedPlaybackSession(
+            Guid id,
+            string sourceId,
+            HashSet<OutputBus> activeBuses,
+            bool isStarting)
+        {
+            Id = id;
+            SourceId = sourceId;
+            ActiveBuses = activeBuses;
+            IsStarting = isStarting;
+        }
+
+        public Guid Id { get; }
+
+        public string SourceId { get; }
+
+        public HashSet<OutputBus> ActiveBuses { get; }
+
+        public bool IsStarting { get; set; }
+
+        public PlaybackState? PendingState { get; set; }
+
+        public Exception? PendingError { get; set; }
     }
 }

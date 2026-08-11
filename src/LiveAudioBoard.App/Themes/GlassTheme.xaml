@@ -35,6 +35,12 @@
         <GradientStop Offset="1" Color="#12FFFFFF" />
     </LinearGradientBrush>
 
+    <LinearGradientBrush x:Key="ModalSurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#F0222935" />
+        <GradientStop Offset="0.35" Color="#EC141B27" />
+        <GradientStop Offset="1" Color="#F0080D16" />
+    </LinearGradientBrush>
+
     <DrawingBrush x:Key="NoiseBrush"
                   TileMode="Tile"
                   Viewport="0,0,36,36"
@@ -202,6 +208,7 @@
         <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Padding" Value="42,11,14,11" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
@@ -229,7 +236,9 @@
                                        IsHitTestVisible="False" />
                             <ScrollViewer x:Name="PART_ContentHost"
                                           Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center" />
+                                          VerticalAlignment="Stretch"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -251,6 +260,155 @@
         </Setter>
     </Style>
 
+    <Style x:Key="GlassInputBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource GlassInputBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#1AFFFFFF" />
+                <Setter Property="BorderBrush" Value="{StaticResource GlassBorderHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="Background" Value="{StaticResource GlassButtonBrush}" />
+                <Setter Property="BorderBrush" Value="#66E4B863" />
+                <Setter Property="BorderThickness" Value="2" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="GlassPlainTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource ChampagneBrush}" />
+        <Setter Property="SelectionBrush" Value="#66E4B863" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="13,9" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    </Style>
+
+    <Style x:Key="GlassComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="12,9" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemSurface"
+                            Margin="4,2"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="10">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="ItemSurface" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="ItemSurface" Property="Background" Value="#26E4B863" />
+                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GlassComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Height" Value="42" />
+        <Setter Property="Background" Value="{StaticResource GlassInputBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource GlassComboBoxItemStyle}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="DropDownToggle"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      Focusable="False"
+                                      ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="ComboSurface"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="14">
+                                        <Grid>
+                                            <Path Width="8"
+                                                  Height="5"
+                                                  Margin="0,0,14,0"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center"
+                                                  Fill="{StaticResource TextMutedBrush}"
+                                                  Data="M 0 0 L 8 0 L 4 5 Z" />
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ComboSurface" Property="Background" Value="{StaticResource GlassHoverBrush}" />
+                                            <Setter TargetName="ComboSurface" Property="BorderBrush" Value="{StaticResource GlassBorderHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter Margin="13,0,34,0"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
+                        <Popup x:Name="PART_Popup"
+                               Margin="0,6,0,0"
+                               AllowsTransparency="True"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               Placement="Bottom"
+                               PopupAnimation="Fade">
+                            <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="280"
+                                    Padding="4"
+                                    Background="#F0121B2B"
+                                    BorderBrush="{StaticResource GlassBorderHoverBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel IsItemsHost="True" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="DropDownToggle" Property="BorderBrush" Value="#66E4B863" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.42" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="GlassProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="4" />
         <Setter Property="Background" Value="#14FFFFFF" />
@@ -265,6 +423,56 @@
                                 HorizontalAlignment="Left"
                                 Background="{TemplateBinding Foreground}"
                                 CornerRadius="2" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="GlassSliderStyle" TargetType="Slider">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Foreground" Value="{StaticResource ChampagneBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid VerticalAlignment="Center">
+                        <Track x:Name="PART_Track" Height="18">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Height="4"
+                                                    VerticalAlignment="Center"
+                                                    Background="{StaticResource ChampagneBrush}"
+                                                    CornerRadius="2" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Width="16" Height="16">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Ellipse Fill="{StaticResource ChampagneBrush}"
+                                                     Stroke="#B8FFF1CE"
+                                                     StrokeThickness="1" />
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Border Height="4"
+                                                    VerticalAlignment="Center"
+                                                    Background="#20FFFFFF"
+                                                    CornerRadius="2" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                        </Track>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

@@ -1,14 +1,20 @@
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Playback;
 
 namespace LiveAudioBoard.App.ViewModels;
 
 public partial class AudioClipViewModel : ObservableObject
 {
+    private readonly HashSet<Guid> _activePlaybackIds = [];
+    private DateTimeOffset? _lastPlaybackTriggeredUtc;
+
     public AudioClipViewModel(AudioClip model)
     {
         Model = model;
         isFavorite = model.IsFavorite;
+        isFileMissing = !File.Exists(model.FilePath);
     }
 
     public AudioClip Model { get; }
@@ -19,9 +25,108 @@ public partial class AudioClipViewModel : ObservableObject
 
     public string Category => Model.Category;
 
+    public int DisplayOrder => Model.DisplayOrder;
+
+    public DateTime CreatedUtc => Model.CreatedUtc;
+
     public string DurationText => Model.DurationText;
 
     public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey) ? "未绑定" : Model.Hotkey;
+
+    public string PlaybackSettingsSummary
+    {
+        get
+        {
+            if (IsFileMissing)
+            {
+                return "文件缺失 · 需要重新定位";
+            }
+
+            var modes = new List<string>();
+            modes.Add(Model.PlaybackRoute switch
+            {
+                AudioPlaybackRoute.LiveOnly => "仅直播",
+                AudioPlaybackRoute.MonitorOnly => "仅监听",
+                _ => "直播 + 监听"
+            });
+            if (Model.LoopPlayback)
+            {
+                modes.Add("循环");
+            }
+
+            if (Model.ExclusivePlayback)
+            {
+                modes.Add("独占");
+            }
+
+            if (Model.FadeInMilliseconds > 0 || Model.FadeOutMilliseconds > 0)
+            {
+                modes.Add($"淡入 {Model.FadeInMilliseconds} / 淡出 {Model.FadeOutMilliseconds} ms");
+            }
+
+            if (Model.StartOffsetMilliseconds > 0 || Model.EndOffsetMilliseconds > 0)
+            {
+                var end = Model.EndOffsetMilliseconds > 0
+                    ? FormatDuration(Model.EndOffsetMilliseconds)
+                    : DurationText;
+                modes.Add($"区间 {FormatDuration(Model.StartOffsetMilliseconds)}–{end}");
+            }
+
+            if (Model.UseRecommendedGain && Model.RecommendedGainDb.HasValue)
+            {
+                modes.Add($"增益 {Model.RecommendedGainDb:+0.0;-0.0;0.0} dB");
+            }
+
+            if (Model.EnablePeakProtection)
+            {
+                modes.Add("峰值保护");
+            }
+
+            if (Model.PlaybackCooldownMilliseconds > 0)
+            {
+                modes.Add($"冷却 {Model.PlaybackCooldownMilliseconds} ms");
+            }
+
+            return modes.Count == 0 ? "标准混音" : string.Join(" · ", modes);
+        }
+    }
+
+    public string LoudnessSummary => Model.IntegratedLufs.HasValue
+        ? $"{Model.IntegratedLufs:0.0} LUFS · 峰值 {Model.SamplePeakDbfs:0.0} dBFS · " +
+          $"建议 {Model.RecommendedGainDb:+0.0;-0.0;0.0} dB"
+        : "尚未分析响度";
+
+    public string SourceSummary
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Model.SourceProvider))
+            {
+                return "本地音频";
+            }
+
+            var provider = Model.SourceProvider.ToLowerInvariant() switch
+            {
+                "freesound" => "Freesound",
+                "jamendo" => "Jamendo",
+                "wikimedia_audio" => "Wikimedia Commons",
+                "direct-http" => "音频直链",
+                "recording-microphone" => "麦克风录音",
+                "recording-loopback" => "系统回环录音",
+                "rendered-export" => "音频编辑导出",
+                "rss" => "RSS / Atom 音频源",
+                _ => Model.SourceProvider
+            };
+
+            return string.IsNullOrWhiteSpace(Model.License)
+                ? provider
+                : $"{provider}\n{Model.License}";
+        }
+    }
+
+    public string CardToolTip => IsFileMissing
+        ? $"文件缺失\n{FilePath}"
+        : SourceSummary;
 
     public string CategoryGlyph => Category switch
     {
@@ -36,12 +141,127 @@ public partial class AudioClipViewModel : ObservableObject
     private bool isFavorite;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlaybackSettingsSummary))]
     [NotifyPropertyChangedFor(nameof(PlayActionText))]
-    private bool isPlaying;
+    [NotifyPropertyChangedFor(nameof(CardToolTip))]
+    private bool isFileMissing;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MediaRecoveryActionText))]
+    private bool isRecoveringMedia;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPlaying))]
+    [NotifyPropertyChangedFor(nameof(PlayActionText))]
+    private int activePlaybackCount;
+
+    [ObservableProperty]
+    private double playbackProgressPercent;
+
+    [ObservableProperty]
+    private string playbackPositionText = string.Empty;
+
+    public IReadOnlyCollection<Guid> ActivePlaybackIds => _activePlaybackIds;
 
     public string FavoriteGlyph => IsFavorite ? "★" : "☆";
 
-    public string PlayActionText => IsPlaying ? "播放中" : "播放";
+    public bool IsPlaying => ActivePlaybackCount > 0;
+
+    public string PlayActionText => IsFileMissing
+        ? "重新定位"
+        : ActivePlaybackCount > 0
+        ? Model.LoopPlayback
+            ? "停止循环"
+            : $"播放中 ×{ActivePlaybackCount}"
+        : "播放";
+
+    public string MediaRecoveryActionText => IsRecoveringMedia
+        ? "正在恢复…"
+        : "重新定位";
+
+    public void SetHotkey(string? hotkey)
+    {
+        Model.Hotkey = string.IsNullOrWhiteSpace(hotkey) ? null : hotkey.Trim();
+        OnPropertyChanged(nameof(HotkeyText));
+    }
+
+    public void PlaybackStarted(Guid playbackId)
+    {
+        if (_activePlaybackIds.Add(playbackId))
+        {
+            ActivePlaybackCount = _activePlaybackIds.Count;
+        }
+    }
+
+    public void PlaybackStopped(Guid playbackId)
+    {
+        if (_activePlaybackIds.Remove(playbackId))
+        {
+            ActivePlaybackCount = _activePlaybackIds.Count;
+        }
+
+        if (_activePlaybackIds.Count == 0)
+        {
+            UpdatePlaybackProgress(0, Model.DurationMilliseconds);
+        }
+    }
+
+    public void UpdatePlaybackProgress(long positionMilliseconds, long durationMilliseconds)
+    {
+        PlaybackProgressPercent = durationMilliseconds <= 0
+            ? 0d
+            : Math.Clamp(positionMilliseconds * 100d / durationMilliseconds, 0d, 100d);
+        PlaybackPositionText = ActivePlaybackCount == 0
+            ? string.Empty
+            : $"{FormatDuration(positionMilliseconds)} / {FormatDuration(durationMilliseconds)}";
+    }
+
+    public void RefreshPlaybackSettings()
+    {
+        OnPropertyChanged(nameof(PlaybackSettingsSummary));
+        OnPropertyChanged(nameof(PlayActionText));
+    }
+
+    public void RefreshLibraryPlacement()
+    {
+        OnPropertyChanged(nameof(Category));
+        OnPropertyChanged(nameof(CategoryGlyph));
+        OnPropertyChanged(nameof(DisplayOrder));
+    }
+
+    public void RefreshLoudnessAnalysis() =>
+        OnPropertyChanged(nameof(LoudnessSummary));
+
+    public void RefreshMediaAvailability()
+    {
+        IsFileMissing = !File.Exists(Model.FilePath);
+        OnPropertyChanged(nameof(FilePath));
+        OnPropertyChanged(nameof(DurationText));
+        OnPropertyChanged(nameof(CardToolTip));
+    }
+
+    public TimeSpan GetPlaybackCooldownRemaining(DateTimeOffset now)
+    {
+        if (Model.PlaybackCooldownMilliseconds <= 0 || !_lastPlaybackTriggeredUtc.HasValue)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var availableAt = _lastPlaybackTriggeredUtc.Value.AddMilliseconds(
+            Model.PlaybackCooldownMilliseconds);
+        return availableAt > now ? availableAt - now : TimeSpan.Zero;
+    }
+
+    public void MarkPlaybackTriggered(DateTimeOffset triggeredUtc) =>
+        _lastPlaybackTriggeredUtc = triggeredUtc;
+
+    private static string FormatDuration(long milliseconds)
+    {
+        var duration = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return duration.TotalHours >= 1
+            ? duration.ToString(@"h\:mm\:ss")
+            : duration.ToString(@"m\:ss");
+    }
 
     partial void OnIsFavoriteChanged(bool value)
     {

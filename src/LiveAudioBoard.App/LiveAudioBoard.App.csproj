@@ -9,14 +9,30 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
   </ItemGroup>
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AssemblyName>LiveAudioBoard</AssemblyName>
+    <RootNamespace>LiveAudioBoard.App</RootNamespace>
+    <StartupObject>LiveAudioBoard.App.App</StartupObject>
+    <ApplicationIcon>..\..\assets\branding\app-icon.ico</ApplicationIcon>
+    <Version>0.22.0</Version>
+    <Product>LiveAudioBoard</Product>
+    <AssemblyTitle>LiveAudioBoard</AssemblyTitle>
+    <Description>Windows 直播音频面板</Description>
+    <Company>LiveAudioBoard Contributors</Company>
+    <Authors>LiveAudioBoard Contributors</Authors>
   </PropertyGroup>
 
 </Project>

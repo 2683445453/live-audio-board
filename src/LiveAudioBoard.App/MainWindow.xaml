@@ -16,6 +16,9 @@
         Background="{StaticResource WindowBackgroundBrush}"
         Foreground="{StaticResource TextPrimaryBrush}"
         FontFamily="Microsoft YaHei UI"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop"
         TextOptions.TextFormattingMode="Display">
 
     <shell:WindowChrome.WindowChrome>
@@ -226,8 +229,12 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource NavButtonStyle}"
+                                                AllowDrop="True"
                                                 Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}">
+                                                CommandParameter="{Binding}"
+                                                DragOver="Category_DragOver"
+                                                Drop="Category_Drop"
+                                                ToolTip="点击筛选；也可把音效卡拖到这里移动分类">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Width="28"
                                                            FontFamily="Segoe Fluent Icons"
@@ -242,12 +249,104 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Button Grid.Row="4"
-                                Margin="0,12,0,0"
-                                Style="{StaticResource QuietButtonStyle}"
-                                HorizontalContentAlignment="Center"
-                                Command="{Binding OpenHotkeyCenterCommand}"
-                                Content="热键中心" />
+                        <StackPanel Grid.Row="4" Margin="0,12,0,0">
+                            <Button Style="{StaticResource QuietButtonStyle}"
+                                    HorizontalContentAlignment="Center"
+                                    Command="{Binding OpenHotkeyCenterCommand}"
+                                    Content="快捷键管理"
+                                    ToolTip="管理音效热键和紧急停止热键" />
+                            <Grid Margin="0,8,0,0">
+                                <Button HorizontalContentAlignment="Center"
+                                        Command="{Binding AnalyzeLibraryLoudnessCommand}"
+                                        Content="{Binding BatchLoudnessAnalysisActionText}"
+                                        ToolTip="依次分析资料库中尚无 LUFS 数据的音频">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button HorizontalContentAlignment="Center"
+                                        Foreground="{StaticResource ChampagneTextBrush}"
+                                        Command="{Binding CancelBatchLoudnessAnalysisCommand}"
+                                        Content="取消批量分析">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                            <StackPanel Margin="4,9,4,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBatchLoudnessAnalyzing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <ProgressBar Style="{StaticResource GlassProgressBarStyle}"
+                                             Maximum="100"
+                                             Value="{Binding BatchLoudnessProgressPercent}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="{Binding BatchLoudnessStatus}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding BatchLoudnessStatus}" />
+                            </StackPanel>
+                            <Border Margin="0,8,0,0"
+                                    Padding="8,7"
+                                    Background="#08FFFFFF"
+                                    BorderBrush="#18FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="10">
+                                <StackPanel>
+                                    <TextBlock Margin="2,0,2,6"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding UpdateStatus}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding UpdateStatus}" />
+                                    <ProgressBar Height="2"
+                                                 Maximum="100"
+                                                 Value="{Binding UpdateProgressPercent}">
+                                        <ProgressBar.Style>
+                                            <Style TargetType="ProgressBar"
+                                                   BasedOn="{StaticResource GlassProgressBarStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsUpdatingApplication}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsUpdateReady}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ProgressBar.Style>
+                                    </ProgressBar>
+                                    <Button Margin="0,5,0,0"
+                                            Padding="8,4"
+                                            HorizontalContentAlignment="Center"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Command="{Binding UpdateApplicationCommand}"
+                                            Content="{Binding UpdateActionText}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -260,6 +359,10 @@
                     </Grid.RowDefinitions>
 
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="240" />
@@ -278,18 +381,61 @@
                                        Text="{Binding ResultSummary}" />
                         </StackPanel>
 
-                        <TextBox Grid.Column="1"
-                                 Height="44"
-                                 VerticalAlignment="Center"
-                                 Style="{StaticResource GlassTextBoxStyle}"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="按标题、分类或路径搜索" />
+                        <Border Grid.Column="1"
+                                Height="44"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource GlassInputBorderStyle}">
+                            <Grid>
+                                <TextBlock Margin="14,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Segoe Fluent Icons"
+                                           FontSize="15"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="&#xE721;"
+                                           IsHitTestVisible="False" />
+                                <TextBlock Margin="42,0,12,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="搜索音频…"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=LibrarySearchTextBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBox x:Name="LibrarySearchTextBox"
+                                         Margin="32,0,0,0"
+                                         Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="按标题、分类或路径搜索" />
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                        <StackPanel Grid.Row="1"
+                                    Grid.ColumnSpan="4"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <Button Margin="0,0,8,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding OpenRecordingCenterCommand}"
+                                    Content="录制音频" />
                             <Button Margin="0,0,8,0"
                                     Style="{StaticResource QuietButtonStyle}"
                                     Command="{Binding OpenDownloadCenterCommand}"
                                     Content="下载音频" />
+                            <Button Margin="0,0,8,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding ImportFolderCommand}"
+                                    Content="导入文件夹"
+                                    ToolTip="递归扫描文件夹，子目录自动作为分类" />
                             <Button Style="{StaticResource AccentButtonStyle}"
                                     Command="{Binding ImportAudioCommand}"
                                     Content="＋  导入音频" />
@@ -297,7 +443,12 @@
                     </Grid>
 
                     <Grid Grid.Row="2">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
                             <ItemsControl ItemsSource="{Binding ClipsView}">
                                 <ItemsControl.ItemsPanel>
@@ -308,14 +459,24 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Width="226"
-                                                Height="162"
+                                                Height="192"
                                                 Margin="0,0,12,12"
-                                                Padding="18">
+                                                Padding="18"
+                                                AllowDrop="True"
+                                                PreviewMouseLeftButtonDown="AudioCard_PreviewMouseLeftButtonDown"
+                                                MouseMove="AudioCard_MouseMove"
+                                                DragOver="AudioCard_DragOver"
+                                                Drop="AudioCard_Drop"
+                                                ToolTip="{Binding CardToolTip}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource GlassCardStyle}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsPlaying}" Value="True">
                                                             <Setter Property="BorderBrush" Value="#8CE4B863" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
                                                             <Setter Property="BorderThickness" Value="2" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -326,6 +487,7 @@
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
                                                     <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
 
                                                 <Grid>
@@ -333,18 +495,30 @@
                                                                FontSize="25"
                                                                Foreground="{StaticResource MoonlightBrush}"
                                                                Text="{Binding CategoryGlyph}" />
-                                                    <Button Width="34"
-                                                            Height="34"
-                                                            HorizontalAlignment="Right"
-                                                            Style="{StaticResource QuietButtonStyle}"
-                                                            Padding="0"
-                                                            FontFamily="Segoe UI Symbol"
-                                                            FontSize="16"
-                                                            Foreground="{StaticResource ChampagneTextBrush}"
-                                                            Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="{Binding FavoriteGlyph}"
-                                                            ToolTip="收藏或取消收藏" />
+                                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                                        <Button Width="34"
+                                                                Height="34"
+                                                                Margin="0,0,6,0"
+                                                                Style="{StaticResource QuietButtonStyle}"
+                                                                Padding="0"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                FontSize="13"
+                                                                Command="{Binding DataContext.OpenPlaybackSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="&#xE713;"
+                                                                ToolTip="循环、独占与淡入淡出" />
+                                                        <Button Width="34"
+                                                                Height="34"
+                                                                Style="{StaticResource QuietButtonStyle}"
+                                                                Padding="0"
+                                                                FontFamily="Segoe UI Symbol"
+                                                                FontSize="16"
+                                                                Foreground="{StaticResource ChampagneTextBrush}"
+                                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding FavoriteGlyph}"
+                                                                ToolTip="收藏或取消收藏" />
+                                                    </StackPanel>
                                                 </Grid>
 
                                                 <StackPanel Grid.Row="1" Margin="0,8,0,8" VerticalAlignment="Center">
@@ -356,26 +530,79 @@
                                                     <TextBlock Margin="0,5,0,0"
                                                                FontSize="11"
                                                                Foreground="{StaticResource TextMutedBrush}">
-                                                        <Run Text="{Binding Category}" />
+                                                        <Run Text="{Binding Category, Mode=OneWay}" />
                                                         <Run Text="  ·  " />
-                                                        <Run Text="{Binding DurationText}" />
+                                                        <Run Text="{Binding DurationText, Mode=OneWay}" />
                                                     </TextBlock>
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               FontSize="9"
+                                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                                               Text="{Binding PlaybackSettingsSummary}"
+                                                               TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
 
-                                                <Grid Grid.Row="2">
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               FontFamily="Cascadia Mono"
-                                                               FontSize="10"
+                                                <Grid Grid.Row="2" Margin="0,0,0,8">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Margin="0,0,0,4"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="8"
                                                                Foreground="{StaticResource TextMutedBrush}"
-                                                               Text="{Binding HotkeyText}" />
-                                                    <Button Width="66"
-                                                            Height="34"
-                                                            HorizontalAlignment="Right"
+                                                               Text="{Binding PlaybackPositionText}" />
+                                                    <ProgressBar Grid.Row="1"
+                                                                 Style="{StaticResource GlassProgressBarStyle}"
+                                                                 Maximum="100"
+                                                                 Value="{Binding PlaybackProgressPercent}" />
+                                                </Grid>
+
+                                                <Grid Grid.Row="3">
+                                                    <Button MinWidth="76"
+                                                            Height="28"
+                                                            HorizontalAlignment="Left"
                                                             Style="{StaticResource QuietButtonStyle}"
-                                                            Padding="8,4"
-                                                            Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            Padding="8,3"
+                                                            FontFamily="Cascadia Mono"
+                                                            FontSize="9"
+                                                            Command="{Binding DataContext.OpenHotkeyCenterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             CommandParameter="{Binding}"
-                                                            Content="{Binding PlayActionText}" />
+                                                            Content="{Binding HotkeyText}"
+                                                            ToolTip="录入或修改全局快捷键" />
+                                                    <Grid Width="82"
+                                                          Height="34"
+                                                          HorizontalAlignment="Right">
+                                                        <Button Padding="8,4"
+                                                                Command="{Binding DataContext.PlayCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding PlayActionText}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Padding="8,4"
+                                                                Foreground="{StaticResource DangerBrush}"
+                                                                Command="{Binding DataContext.RecoverMissingMediaCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="{Binding MediaRecoveryActionText}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsFileMissing}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </Grid>
                                                 </Grid>
                                             </Grid>
                                         </Border>
@@ -384,7 +611,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Grid>
+                        <Grid Grid.Row="0">
                             <Grid.Style>
                                 <Style TargetType="Grid">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -416,7 +643,7 @@
                                            FontSize="12"
                                            LineHeight="20"
                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                           Text="导入音频后即可分类、收藏，并通过 WASAPI 在直播中稳定播放。" />
+                                           Text="选择音频或文件夹，也可以直接拖到窗口；子目录会自动成为分类。" />
                                 <Button Width="136"
                                         HorizontalAlignment="Center"
                                         Style="{StaticResource AccentButtonStyle}"
@@ -424,6 +651,47 @@
                                         Content="导入第一段音频" />
                             </StackPanel>
                         </Grid>
+
+                        <Border Grid.Row="1"
+                                Margin="0,6,0,0"
+                                Padding="10,6"
+                                HorizontalAlignment="Center"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaginationVisible}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Width="58"
+                                        Height="28"
+                                        Padding="4,2"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding PreviousLibraryPageCommand}"
+                                        Content="上一页" />
+                                <TextBlock Width="64"
+                                           VerticalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="{Binding PageSummary}" />
+                                <Button Width="58"
+                                        Height="28"
+                                        Padding="4,2"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding NextLibraryPageCommand}"
+                                        Content="下一页" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
 
@@ -445,12 +713,12 @@
                             <TextBlock FontSize="16"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                       Text="直播队列" />
+                                       Text="活动混音" />
                             <TextBlock HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="0 待播放" />
+                                       Text="{Binding ActivePlaybackSummary}" />
                         </Grid>
 
                         <StackPanel Grid.Row="1" Margin="0,24,0,22">
@@ -468,33 +736,74 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Text="{Binding NowPlayingSubtitle}"
                                        TextWrapping="Wrap" />
+                            <ProgressBar Margin="0,15,0,0"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Maximum="100"
+                                         Value="{Binding NowPlayingProgressPercent}" />
+                            <TextBlock Margin="0,5,0,0"
+                                       HorizontalAlignment="Right"
+                                       FontFamily="Cascadia Mono"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding NowPlayingProgressText}" />
                         </StackPanel>
 
                         <Rectangle Grid.Row="2" Fill="#1FFFFFFF" />
 
                         <StackPanel Grid.Row="3" Margin="0,22,0,0">
-                            <TextBlock FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Text="音频路由" />
-                            <Grid Margin="0,12,0,0">
+                            <Grid>
                                 <StackPanel>
-                                    <TextBlock FontSize="13"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               Text="默认输出设备" />
-                                    <TextBlock Margin="0,4,0,0"
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="音频路由" />
+                                    <TextBlock Margin="0,3,0,0"
                                                FontSize="10"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="WASAPI · 共享模式" />
+                                               Text="直播输出" />
                                 </StackPanel>
-                                <Ellipse Width="8"
-                                         Height="8"
-                                         HorizontalAlignment="Right"
-                                         VerticalAlignment="Center"
-                                         Fill="{StaticResource ChampagneBrush}" />
+                                <Button Width="34"
+                                        Height="32"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        FontFamily="Segoe Fluent Icons"
+                                        FontSize="13"
+                                        Command="{Binding RefreshOutputDevicesCommand}"
+                                        Content="&#xE72C;"
+                                        ToolTip="刷新输出设备" />
                             </Grid>
+                            <ComboBox Margin="0,11,0,0"
+                                      Height="36"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding OutputDevices}"
+                                      SelectedItem="{Binding SelectedOutputDevice, Mode=TwoWay}"
+                                      ToolTip="直播输出：供 OBS 或虚拟声卡采集">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Margin="2,9,0,0"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="主播监听" />
+                            <ComboBox Margin="0,4,0,0"
+                                      Height="36"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding OutputDevices}"
+                                      SelectedItem="{Binding SelectedMonitorOutputDevice, Mode=TwoWay}"
+                                      ToolTip="监听输出：供主播耳机或扬声器试听">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="4" Margin="0,28,0,0">
+                        <StackPanel Grid.Row="4" Margin="0,20,0,0">
                             <TextBlock FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Text="OBS 设置提示" />
@@ -503,7 +812,25 @@
                                        LineHeight="19"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
-                                       Text="在 OBS 中添加“应用程序音频捕获”，并选择 LiveAudioBoard，即可单独控制直播音量。" />
+                                       Text="需要隔离时，将直播输出设为虚拟声卡并让 OBS 捕获该设备；应用程序音频捕获可能同时包含监听。" />
+                            <Border Margin="0,14,0,0"
+                                    Padding="12,10"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="12">
+                                <StackPanel>
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="全局急停" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="10"
+                                               LineHeight="16"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding EmergencyHotkeyStatus}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
 
                         <Button Grid.Row="5"
@@ -559,18 +886,37 @@
                         <ProgressBar Width="220"
                                      Margin="0,11,0,0"
                                      Maximum="100"
-                                     Value="35">
+                                     Value="{Binding MasterLevelPercent}">
                             <ProgressBar.Style>
                                 <Style TargetType="ProgressBar" BasedOn="{StaticResource GlassProgressBarStyle}">
-                                    <Setter Property="Opacity" Value="0.25" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                            <Setter Property="Opacity" Value="1" />
+                                        <DataTrigger Binding="{Binding IsMasterLimiting}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </ProgressBar.Style>
                         </ProgressBar>
+                        <Grid Width="220" Margin="0,5,0,0">
+                            <TextBlock FontFamily="Cascadia Mono"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding MasterOutputLevelText}" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       FontSize="9"
+                                       Text="{Binding MasterGainReductionText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMasterLimiting}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2"
@@ -579,12 +925,22 @@
                         <TextBlock HorizontalAlignment="Right"
                                    FontSize="10"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   Text="输出设备" />
+                                   Text="直播输出" />
                         <TextBlock Margin="0,5,0,0"
                                    HorizontalAlignment="Right"
                                    FontSize="12"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="Windows 默认输出" />
+                                   Text="{Binding OutputDeviceName}" />
+                        <TextBlock Margin="0,7,0,0"
+                                   HorizontalAlignment="Right"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="主播监听" />
+                        <TextBlock Margin="0,3,0,0"
+                                   HorizontalAlignment="Right"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="{Binding MonitorOutputDeviceName}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -596,8 +952,1480 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="MVP 0.1 · 本地资料库" />
+                                       Text="MVP 0.22 · 三路并发后台下载与授权馆藏" />
             </Grid>
+        </Grid>
+
+        <!-- Microphone and system-loopback recording workspace. -->
+        <Grid Panel.ZIndex="120" Background="#B8060A13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRecordingCenterOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Border Width="600"
+                    MaxHeight="610"
+                    Margin="24"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="录制音频" />
+                            <TextBlock Margin="0,5,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="默认设备录制 · 48 kHz 双声道 WAV · 完成后自动导入" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding CloseRecordingCenterCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭录音中心" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,26,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="170" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="录音来源" />
+                            <ComboBox Margin="0,7,0,0"
+                                      Height="42"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding RecordingSourceOptions}"
+                                      SelectedItem="{Binding SelectedRecordingSource, Mode=TwoWay}"
+                                      DisplayMemberPath="Name" />
+                            <TextBlock Margin="2,6,0,0"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding SelectedRecordingSource.Description}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="最长时长（秒）" />
+                            <ComboBox Margin="0,7,0,0"
+                                      Height="42"
+                                      Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding RecordingDurationOptions}"
+                                      SelectedItem="{Binding RecordingMaximumDurationSeconds, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="2"
+                            Margin="0,24,0,0"
+                            Padding="18"
+                            Background="#10FFFFFF"
+                            BorderBrush="#24FFFFFF"
+                            BorderThickness="1"
+                            CornerRadius="16">
+                        <StackPanel>
+                            <CheckBox Content="自动裁掉首尾静音（阈值 -45 dBFS，保留 80 ms 边缘）"
+                                      IsChecked="{Binding RecordingTrimSilence, Mode=TwoWay}" />
+                            <Grid Margin="0,22,0,8">
+                                <TextBlock FontSize="11"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="实时输入电平" />
+                                <TextBlock HorizontalAlignment="Right"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="18"
+                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                           Text="{Binding RecordingElapsedText}" />
+                            </Grid>
+                            <ProgressBar Height="8"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Maximum="100"
+                                         Value="{Binding RecordingLevelPercent}" />
+                            <TextBlock Margin="0,18,0,0"
+                                       MinHeight="36"
+                                       FontSize="11"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="{Binding RecordingStatus}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Grid.Row="3" Margin="0,24,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Height="42"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Command="{Binding StartRecordingCommand}"
+                                Content="●  开始录音" />
+                        <Button Grid.Column="2"
+                                Height="42"
+                                Style="{StaticResource QuietButtonStyle}"
+                                Foreground="{StaticResource DangerBrush}"
+                                Command="{Binding StopRecordingCommand}"
+                                Content="■  停止并保存" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Open-license search and direct-download workspace. -->
+        <Grid Panel.ZIndex="100" Background="#B8060A13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding DownloadCenter.IsOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="900"
+                     Height="560"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.5"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#3D7C9CC4" />
+                        <GradientStop Offset="0.7" Color="#1633517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="86" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="880"
+                    Height="590"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="开放音频库" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="搜索四个开放音频来源、载入 RSS/Atom，或使用合法音频直链" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding DownloadCenter.CloseCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭下载中心" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="1"
+                                Margin="0,18,0,0"
+                                Orientation="Horizontal">
+                        <Button Width="126"
+                                Margin="0,0,8,0"
+                                Command="{Binding DownloadCenter.ShowSearchModeCommand}"
+                                Content="免费音频搜索">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="110"
+                                Margin="0,0,8,0"
+                                Command="{Binding DownloadCenter.ShowRssModeCommand}"
+                                Content="RSS / Atom">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="110"
+                                Margin="0,0,8,0"
+                                Command="{Binding DownloadCenter.ShowDirectLinkModeCommand}"
+                                Content="音频直链">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsDirectLinkMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="136"
+                                Command="{Binding DownloadCenter.ShowFreesoundModeCommand}"
+                                Content="Freesound 授权">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Search mode -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="96" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Style="{StaticResource GlassComboBoxStyle}"
+                                      ItemsSource="{Binding DownloadCenter.Sources}"
+                                      SelectedItem="{Binding DownloadCenter.SelectedSource, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Border Grid.Column="2"
+                                    Height="42"
+                                    Style="{StaticResource GlassInputBorderStyle}">
+                                <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding DownloadCenter.SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="可使用中文或英文关键词；英文通常能获得更多结果" />
+                            </Border>
+                            <Button Grid.Column="4"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.SearchCommand}"
+                                    Content="搜索" />
+                        </Grid>
+
+                        <Grid>
+                            <Grid.Style>
+                                <Style TargetType="Grid">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Grid.Style>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="116" />
+                            </Grid.ColumnDefinitions>
+                            <Border Height="42"
+                                    Style="{StaticResource GlassInputBorderStyle}">
+                                <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                         Text="{Binding DownloadCenter.FeedUrlText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="例如 https://example.com/podcast/feed.xml" />
+                            </Border>
+                            <Button Grid.Column="2"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.LoadFeedCommand}"
+                                    Content="载入 Feed" />
+                        </Grid>
+
+                        <Grid Grid.Row="1" Margin="2,10,2,8">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding DownloadCenter.SearchSummary}" />
+                            <TextBlock HorizontalAlignment="Right"
+                                       FontSize="10"
+                                       Foreground="{StaticResource ChampagneTextBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="仅显示 CC0、公共领域和 CC BY 内容" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsRssMode}" Value="True">
+                                                <Setter Property="Text" Value="下载前请核对 Feed 页面标注的授权" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                        <ScrollViewer Grid.Row="2"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding DownloadCenter.SearchResults}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,7"
+                                                Padding="14,11"
+                                                Background="#0FFFFFFF"
+                                                BorderBrush="#1FFFFFFF"
+                                                BorderThickness="1"
+                                                CornerRadius="14">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="82" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="68" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="70" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="70" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Text="{Binding Title}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <Run Text="{Binding CreatorDisplay, Mode=OneWay}" />
+                                                        <Run Text="  ·  " />
+                                                        <Run Text="{Binding MetadataSummary, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Style="{StaticResource QuietButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.OpenRemoteSourceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="查看来源" />
+                                                <Button Grid.Column="3"
+                                                        Style="{StaticResource QuietButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.TogglePreviewCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="试听"
+                                                        ToolTip="使用主播监听设备在线播放，不主动送入直播输出" />
+                                                <Button Grid.Column="5"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.DownloadRemoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="下载" />
+                                                <Button Grid.Column="7"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.DownloadFreesoundOriginalCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="原文件"
+                                                        ToolTip="通过 Freesound OAuth2 下载上传者提供的原始高质量文件">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SourceName}" Value="freesound">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Grid Grid.Row="3" Margin="0,9,0,0">
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsSearchMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.PreviousPageCommand}"
+                                        Content="上一页" />
+                                <TextBlock MinWidth="112"
+                                           Margin="10,0"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="{Binding DownloadCenter.PaginationSummary}" />
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.NextPageCommand}"
+                                        Content="下一页" />
+                            </StackPanel>
+                            <Button Width="92"
+                                    HorizontalAlignment="Right"
+                                    Padding="8,5"
+                                    Command="{Binding DownloadCenter.StopPreviewCommand}"
+                                    Content="停止试听">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DownloadCenter.IsPreviewing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+                    </Grid>
+
+                    <!-- Direct URL fallback -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsDirectLinkMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel VerticalAlignment="Top">
+                            <Border Padding="13,11"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <TextBlock FontSize="11"
+                                           LineHeight="18"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="请仅下载你有权使用的音频。直链模式不解析网页、不绕过登录或 DRM，也不会抓取流媒体平台内容。" />
+                            </Border>
+                            <TextBlock Margin="2,20,0,7"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="音频文件地址" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="116" />
+                                </Grid.ColumnDefinitions>
+                                <Border Height="46"
+                                        Style="{StaticResource GlassInputBorderStyle}">
+                                    <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             Text="{Binding DownloadCenter.UrlText, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="例如 https://example.com/audio.mp3" />
+                                </Border>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding DownloadCenter.DownloadDirectCommand}"
+                                        Content="{Binding DownloadCenter.PrimaryActionText}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Freesound OAuth2 configuration -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel VerticalAlignment="Top">
+                            <Border Padding="13,10"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <Grid>
+                                    <TextBlock Margin="0,0,126,0"
+                                               FontSize="10"
+                                               LineHeight="17"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="原始文件下载需要免费的 Freesound API 凭据和账户授权。Client Secret 与令牌使用 Windows DPAPI 加密，仅当前用户可解密。" />
+                                    <Button Width="116"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Padding="8,5"
+                                            Command="{Binding DownloadCenter.OpenFreesoundApiApplicationCommand}"
+                                            Content="申请 API 凭据" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Margin="2,0,0,6"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="Client ID" />
+                                    <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                        <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                                 Text="{Binding DownloadCenter.FreesoundClientId, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Margin="2,0,0,6"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="Client Secret（已保存时可留空）" />
+                                    <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                        <PasswordBox x:Name="FreesoundClientSecretBox"
+                                                     Padding="12,7"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     PasswordChanged="FreesoundClientSecretBox_PasswordChanged" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <Button Width="204"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.BeginFreesoundAuthorizationCommand}"
+                                    Content="{Binding DownloadCenter.FreesoundAuthorizationActionText}"
+                                    Click="BeginFreesoundAuthorizationButton_Click" />
+
+                            <Grid Margin="0,13,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="128" />
+                                </Grid.ColumnDefinitions>
+                                <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                    <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             Text="{Binding DownloadCenter.FreesoundAuthorizationCode, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="粘贴 Freesound 授权完成页显示的临时 code" />
+                                </Border>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding DownloadCenter.CompleteFreesoundAuthorizationCommand}"
+                                        Content="完成账户连接" />
+                            </Grid>
+
+                            <Grid Margin="2,12,2,0">
+                                <TextBlock Margin="0,0,116,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="10"
+                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                           Text="{Binding DownloadCenter.FreesoundConnectionStatus}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding DownloadCenter.FreesoundConnectionStatus}" />
+                                <Button Width="106"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.DisconnectFreesoundCommand}"
+                                        Content="清除本机授权" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Shared download state -->
+                    <Grid Grid.Row="3" Margin="0,14,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border MaxHeight="104"
+                                Margin="0,0,0,10"
+                                Padding="10,8"
+                                Background="#0AFFFFFF"
+                                BorderBrush="#18FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="11">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.HasDownloadQueueItems}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid Margin="2,0,2,6">
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding DownloadCenter.DownloadQueueSummary}" />
+                                    <Button Width="92"
+                                            Height="24"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Padding="6,2"
+                                            FontSize="9"
+                                            Command="{Binding DownloadCenter.ClearFinishedDownloadsCommand}"
+                                            Content="清理已结束" />
+                                </Grid>
+                                <ScrollViewer Grid.Row="1"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding DownloadCenter.DownloadQueue}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="2,2,2,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="92" />
+                                                        <ColumnDefinition Width="64" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel>
+                                                        <TextBlock FontSize="10"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   Text="{Binding Title}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <ProgressBar Height="2"
+                                                                     Margin="0,4,12,0"
+                                                                     Maximum="100"
+                                                                     Style="{StaticResource GlassProgressBarStyle}"
+                                                                     Value="{Binding ProgressPercent}" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="9"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               Text="{Binding StateText}"
+                                                               TextAlignment="Center" />
+                                                    <Button Grid.Column="2"
+                                                            Height="25"
+                                                            VerticalAlignment="Center"
+                                                            Style="{StaticResource QuietButtonStyle}"
+                                                            Padding="5,2"
+                                                            FontSize="9"
+                                                            IsEnabled="{Binding CanCancel}"
+                                                            Command="{Binding DataContext.DownloadCenter.CancelQueuedDownloadCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="取消" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                        <Grid Grid.Row="1">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="{Binding DownloadCenter.StatusText}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <TextBlock Margin="0,0,12,0"
+                                           VerticalAlignment="Center"
+                                           FontFamily="Cascadia Mono"
+                                           FontSize="10"
+                                           Foreground="{StaticResource ChampagneTextBrush}">
+                                    <Run Text="{Binding DownloadCenter.ProgressPercent, Mode=OneWay, StringFormat={}{0:0.#}}" />
+                                    <Run Text="%" />
+                                </TextBlock>
+                                <Button Width="84"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.CancelDownloadCommand}"
+                                        Content="取消下载" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Grid.Row="2" Margin="0,9,0,0">
+                            <ProgressBar Height="5"
+                                         Margin="0,0,220,0"
+                                         Maximum="100"
+                                         Style="{StaticResource GlassProgressBarStyle}"
+                                         Value="{Binding DownloadCenter.ProgressPercent}" />
+                            <Button Width="196"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Padding="8,5"
+                                    Command="{Binding DownloadCenter.OpenDownloadFolderCommand}"
+                                    Content="{Binding DownloadCenter.DownloadedFileName}"
+                                    ToolTip="在文件夹中显示最近下载" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Non-destructive per-sound playback settings. -->
+        <Grid Panel.ZIndex="105" Background="#B8080B13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPlaybackSettingsOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="780"
+                     Height="560"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.55"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#427C9CC4" />
+                        <GradientStop Offset="0.72" Color="#1833517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="82" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="720"
+                    Height="590"
+                    Padding="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="播放设置" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="路由、起止点、循环与淡入淡出均为非破坏性设置" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding ClosePlaybackSettingsCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭播放设置" />
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1"
+                                  Margin="0,24,0,18"
+                                  VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="当前音频" />
+                        <TextBlock Margin="0,5,0,0"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="{Binding PlaybackEditingTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+
+                        <Grid Margin="0,22,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button Height="66"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding TogglePlaybackLoopCommand}"
+                                    Content="{Binding PlaybackLoopDraftText}"
+                                    ToolTip="循环音效再次触发时会停止循环" />
+                            <Button Grid.Column="2"
+                                    Height="66"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding TogglePlaybackExclusiveCommand}"
+                                    Content="{Binding PlaybackExclusiveDraftText}"
+                                    ToolTip="播放前停止所有其他音效" />
+                        </Grid>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="230" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="播放模式" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               LineHeight="15"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding PlaybackRouteDraft.Description}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          Height="42"
+                                          VerticalAlignment="Center"
+                                          Style="{StaticResource GlassComboBoxStyle}"
+                                          ItemsSource="{Binding PlaybackRouteOptions}"
+                                          SelectedItem="{Binding PlaybackRouteDraft, Mode=TwoWay}"
+                                          DisplayMemberPath="Name" />
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,20,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="淡入时长" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Height="42"
+                                                  Style="{StaticResource GlassComboBoxStyle}"
+                                                  ItemsSource="{Binding FadeDurationOptions}"
+                                                  SelectedItem="{Binding PlaybackFadeInDraft, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="ms" />
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="淡出时长" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Height="42"
+                                                  Style="{StaticResource GlassComboBoxStyle}"
+                                                  ItemsSource="{Binding FadeDurationOptions}"
+                                                  SelectedItem="{Binding PlaybackFadeOutDraft, Mode=TwoWay}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="ms" />
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Text="播放区间" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   FontFamily="Cascadia Mono"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource ChampagneTextBrush}"
+                                                   Text="{Binding PlaybackTrimDraftSummary}" />
+                                    </StackPanel>
+                                    <Button Width="92"
+                                            Height="30"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Padding="7,3"
+                                            Command="{Binding ResetPlaybackTrimCommand}"
+                                            Content="恢复完整" />
+                                </Grid>
+
+                                <TextBlock Margin="0,14,0,3"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="开始点" />
+                                <Slider Style="{StaticResource GlassSliderStyle}"
+                                        Minimum="0"
+                                        Maximum="{Binding PlaybackTrimMaximum}"
+                                        SmallChange="100"
+                                        LargeChange="1000"
+                                        Value="{Binding PlaybackStartDraft, Mode=TwoWay}" />
+
+                                <TextBlock Margin="0,8,0,3"
+                                           FontSize="9"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="结束点" />
+                                <Slider Style="{StaticResource GlassSliderStyle}"
+                                        Minimum="0"
+                                        Maximum="{Binding PlaybackTrimMaximum}"
+                                        SmallChange="100"
+                                        LargeChange="1000"
+                                        Value="{Binding PlaybackEndDraft, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <StackPanel Margin="0,0,150,0">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="直播响度分析" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="10"
+                                               LineHeight="16"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding PlaybackLoudnessSummary}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="分析整段文件；目标 -16 LUFS，峰值余量保留到 -1 dBFS" />
+                                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                        <Button Width="126"
+                                                Height="32"
+                                                Style="{StaticResource QuietButtonStyle}"
+                                                Padding="7,3"
+                                                Command="{Binding ToggleRecommendedGainCommand}"
+                                                Content="{Binding RecommendedGainDraftText}" />
+                                        <Button Width="112"
+                                                Height="32"
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource QuietButtonStyle}"
+                                                Padding="7,3"
+                                                Command="{Binding TogglePeakProtectionCommand}"
+                                                Content="{Binding PeakProtectionDraftText}" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button Width="132"
+                                        Height="36"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding AnalyzeLoudnessCommand}"
+                                        Content="{Binding LoudnessAnalysisActionText}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="播放冷却" />
+                                    <TextBlock Margin="0,4,150,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="忽略冷却期内的重复点击和快捷键触发，循环停止不受限制。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Grid Width="132" HorizontalAlignment="Right">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Height="40"
+                                              Style="{StaticResource GlassComboBoxStyle}"
+                                              ItemsSource="{Binding CooldownDurationOptions}"
+                                              SelectedItem="{Binding PlaybackCooldownDraft, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="7,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="ms" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,14,0,0"
+                                Padding="18"
+                                Background="#12D9B878"
+                                BorderBrush="#32D9B878"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="138" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="另存为新音效" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="烘焙当前区间、淡入淡出、音量与增益；原文件保持不变。"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,3,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="{Binding SelectedExportFormat.Description}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2"
+                                          Height="42"
+                                          VerticalAlignment="Center"
+                                          Style="{StaticResource GlassComboBoxStyle}"
+                                          DisplayMemberPath="Name"
+                                          ItemsSource="{Binding ExportFormatOptions}"
+                                          SelectedItem="{Binding SelectedExportFormat, Mode=TwoWay}" />
+                                <Button Grid.Column="4"
+                                        Height="42"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding RenderAsNewAudioCommand}"
+                                        Content="{Binding RenderAudioActionText}" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Margin="2,14,0,0"
+                                   FontSize="10"
+                                   LineHeight="16"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="{Binding PlaybackSettingsStatus}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                    </ScrollViewer>
+
+                    <Grid Grid.Row="2">
+                        <TextBlock Margin="0,0,220,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="9"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="区间设置精确到毫秒；全局急停仍会立即停止。" />
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <Button Width="110"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding SavePlaybackSettingsCommand}"
+                                    Content="保存设置" />
+                            <Button Width="88"
+                                    Margin="8,0,0,0"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Command="{Binding ClosePlaybackSettingsCommand}"
+                                    Content="完成" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Per-sound global hotkey manager. -->
+        <Grid Panel.ZIndex="110" Background="#B8080B13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsHotkeyCenterOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="760"
+                     Height="500"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.55"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#427C9CC4" />
+                        <GradientStop Offset="0.72" Color="#1833517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="82" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="860"
+                    Height="570"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="快捷键管理" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="为每条音频设置 Windows 全局快捷键，切换到其他软件后仍可触发" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding CloseHotkeyCenterCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭快捷键管理" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,20,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Padding="10"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid Margin="4,2,4,10">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="音频列表" />
+                                    <TextBlock HorizontalAlignment="Right"
+                                               FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding SoundHotkeyCountSummary}" />
+                                </Grid>
+                                <ListBox Grid.Row="1"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ItemsSource="{Binding Clips}"
+                                         SelectedItem="{Binding HotkeyEditingClip, Mode=TwoWay}">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="0,0,0,6" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="SelectionSurface"
+                                                                Padding="12,9"
+                                                                Background="#0AFFFFFF"
+                                                                BorderBrush="#18FFFFFF"
+                                                                BorderThickness="1"
+                                                                CornerRadius="11">
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="SelectionSurface" Property="Background" Value="#24E4B863" />
+                                                                <Setter TargetName="SelectionSurface" Property="BorderBrush" Value="#70E4B863" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="SelectionSurface" Property="BorderBrush" Value="#52FFFFFF" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Text="{Binding Title}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,3,0,0"
+                                                               FontSize="9"
+                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                        <Run Text="{Binding Category, Mode=OneWay}" />
+                                                        <Run Text="  ·  " />
+                                                        <Run Text="{Binding DurationText, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Cascadia Mono"
+                                                           FontSize="9"
+                                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                                           Text="{Binding HotkeyText}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="当前音频" />
+                            <TextBlock Margin="0,5,0,0"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding HotkeyEditingTitle}"
+                                       TextTrimming="CharacterEllipsis" />
+
+                            <TextBlock Margin="0,20,0,7"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="快捷键录入" />
+                            <Border Height="48" Style="{StaticResource GlassInputBorderStyle}">
+                                <Grid>
+                                    <TextBox x:Name="HotkeyCaptureBox"
+                                             Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             FontFamily="Cascadia Mono"
+                                             FontSize="14"
+                                             FontWeight="SemiBold"
+                                             IsReadOnly="True"
+                                             Text="{Binding HotkeyDraft, Mode=OneWay}"
+                                             PreviewKeyDown="HotkeyCaptureBox_PreviewKeyDown"
+                                             ToolTip="点击后直接按下组合键" />
+                                    <TextBlock Margin="14,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="点击这里，然后按下快捷键"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HotkeyDraft}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <TextBlock Margin="2,8,0,0"
+                                       MinHeight="34"
+                                       FontSize="10"
+                                       LineHeight="16"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="{Binding HotkeyCenterStatus}"
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                <Button Width="116"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding SaveHotkeyCommand}"
+                                        Content="保存绑定" />
+                                <Button Width="100"
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding ClearHotkeyCommand}"
+                                        Content="清除绑定" />
+                            </StackPanel>
+
+                            <Border Margin="0,22,0,16"
+                                    Height="1"
+                                    Background="#20FFFFFF" />
+
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="全局热键状态" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding SoundHotkeyRegistrationStatus}" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="紧急停止 Ctrl+Shift+F10 始终独立保留" />
+                                </StackPanel>
+                                <Button Width="154"
+                                        Height="34"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,4"
+                                        Command="{Binding ToggleSoundHotkeysCommand}"
+                                        Content="{Binding SoundHotkeyToggleText}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="9"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="字母或主键盘数字需要修饰键；F1–F24 与数字小键盘可单独使用。" />
+                        <Button Width="100"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource QuietButtonStyle}"
+                                Command="{Binding CloseHotkeyCenterCommand}"
+                                Content="完成" />
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </Window>

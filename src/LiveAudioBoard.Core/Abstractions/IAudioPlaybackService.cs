@@ -1,4 +1,5 @@
 using LiveAudioBoard.Core.Playback;
+using LiveAudioBoard.Core.Models;
 
 namespace LiveAudioBoard.Core.Abstractions;
 
@@ -6,10 +7,32 @@ public interface IAudioPlaybackService : IDisposable
 {
     event EventHandler<PlaybackStateChangedEventArgs>? StateChanged;
 
-    string? CurrentFilePath { get; }
+    event EventHandler<AudioOutputDevicesChangedEventArgs>? OutputDevicesChanged;
 
-    void Play(string filePath, double volume = 1d);
+    int ActivePlaybackCount { get; }
 
-    void Stop();
+    string SelectedOutputDeviceId { get; }
+
+    string SelectedMonitorOutputDeviceId => SelectedOutputDeviceId;
+
+    IReadOnlyList<AudioOutputDevice> GetOutputDevices();
+
+    void SelectOutputDevice(string deviceId);
+
+    void SelectMonitorOutputDevice(string deviceId) => SelectOutputDevice(deviceId);
+
+    Guid Play(string filePath, double volume = 1d);
+
+    Guid Play(string filePath, AudioPlaybackOptions options) =>
+        Play(filePath, options.Normalize().Volume);
+
+    Guid PlayRemote(Uri source, double volume = 1d);
+
+    bool Stop(Guid playbackId);
+
+    void StopAll();
+
+    IReadOnlyList<PlaybackProgress> GetActivePlaybackProgress() => [];
+
+    MasterOutputLevel GetMasterOutputLevel() => MasterOutputLevel.Silent;
 }
-

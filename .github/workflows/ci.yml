@@ -2,9 +2,17 @@ name: Windows CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,11 +26,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.302
           cache: true
-          cache-dependency-path: "**/*.csproj"
+          cache-dependency-path: |
+            **/*.csproj
+            .config/dotnet-tools.json
 
       - name: Restore
         run: dotnet restore LiveAudioBoard.sln
@@ -32,3 +42,12 @@ jobs:
 
       - name: Test
         run: dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
+
+      - name: Publish smoke test
+        run: >-
+          dotnet publish src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/publish-smoke
+          -p:PublishProfile=win-x64
