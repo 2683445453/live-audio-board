@@ -838,7 +838,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                            Text="MVP 0.13 · 输出设备自动恢复" />
+                            Text="MVP 0.14 · 崩溃诊断与日志轮换" />
             </Grid>
         </Grid>
 
