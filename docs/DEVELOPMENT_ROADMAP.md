@@ -90,7 +90,8 @@ LiveAudioBoard/
 ## 当前迭代
 
 Soundpad 类工作流的借鉴范围与实现次序见
-[SOUNDPAD_REFERENCE.md](SOUNDPAD_REFERENCE.md)，下一阶段优先实现单条音频全局快捷键与冲突检查。
+[SOUNDPAD_REFERENCE.md](SOUNDPAD_REFERENCE.md)。单条音频全局快捷键首版已完成，
+下一阶段优先实现资料库文件托管、SHA-256 去重与自动备份。
 
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
@@ -98,6 +99,7 @@ Soundpad 类工作流的借鉴范围与实现次序见
 - [x] 音频导入、SQLite 记录、搜索、收藏、播放和停止。
 - [x] 输出设备选择、刷新、偏好持久化与多音效混音。
 - [x] 全局 `Ctrl+Shift+F10` 紧急停止、冲突反馈与防重复触发。
+- [x] 单条音频全局快捷键、冲突检测、快捷键总览与运行期总开关。
 - [ ] 资料库复制、去重与自动备份。
 - [x] Openverse 站内搜索：Freesound、Jamendo、Wikimedia Commons。
 - [x] 开放音频搜索结果分页、在线试听与单独停止试听。

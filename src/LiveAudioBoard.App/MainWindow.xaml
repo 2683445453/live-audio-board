@@ -247,8 +247,8 @@
                                 Style="{StaticResource QuietButtonStyle}"
                                 HorizontalContentAlignment="Center"
                                 Command="{Binding OpenHotkeyCenterCommand}"
-                                Content="紧急停止热键"
-                                ToolTip="{Binding EmergencyHotkeyStatus}" />
+                                Content="快捷键管理"
+                                ToolTip="管理音效热键和紧急停止热键" />
                     </Grid>
                 </Border>
 
@@ -395,11 +395,17 @@
                                                 </StackPanel>
 
                                                 <Grid Grid.Row="2">
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               FontFamily="Cascadia Mono"
-                                                               FontSize="10"
-                                                               Foreground="{StaticResource TextMutedBrush}"
-                                                               Text="{Binding HotkeyText}" />
+                                                    <Button MinWidth="76"
+                                                            Height="28"
+                                                            HorizontalAlignment="Left"
+                                                            Style="{StaticResource QuietButtonStyle}"
+                                                            Padding="8,3"
+                                                            FontFamily="Cascadia Mono"
+                                                            FontSize="9"
+                                                            Command="{Binding DataContext.OpenHotkeyCenterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{Binding HotkeyText}"
+                                                            ToolTip="录入或修改全局快捷键" />
                                                     <Button Width="82"
                                                             Height="34"
                                                             HorizontalAlignment="Right"
@@ -659,12 +665,12 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                           Text="MVP 0.3 · 开放音频库" />
+                           Text="MVP 0.4 · 全局快捷键" />
             </Grid>
         </Grid>
 
         <!-- Open-license search and direct-download workspace. -->
-        <Grid Panel.ZIndex="100" Background="#060A13">
+        <Grid Panel.ZIndex="100" Background="#B8060A13">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed" />
@@ -699,6 +705,7 @@
                     Padding="26"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
                     Style="{StaticResource GlassCardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -1015,6 +1022,281 @@
                                     Content="{Binding DownloadCenter.DownloadedFileName}"
                                     ToolTip="在文件夹中显示最近下载" />
                         </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Per-sound global hotkey manager. -->
+        <Grid Panel.ZIndex="110" Background="#B8080B13">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsHotkeyCenterOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Ellipse Width="760"
+                     Height="500"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Opacity="0.55"
+                     IsHitTestVisible="False">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Offset="0" Color="#427C9CC4" />
+                        <GradientStop Offset="0.72" Color="#1833517A" />
+                        <GradientStop Offset="1" Color="#0033517A" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <BlurEffect Radius="82" RenderingBias="Performance" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Border Width="860"
+                    Height="570"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ModalSurfaceBrush}"
+                    Style="{StaticResource GlassCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock FontSize="23"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="快捷键管理" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="为每条音频设置 Windows 全局快捷键，切换到其他软件后仍可触发" />
+                        </StackPanel>
+                        <Button Width="38"
+                                Height="36"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Style="{StaticResource WindowButtonStyle}"
+                                Command="{Binding CloseHotkeyCenterCommand}"
+                                Content="&#xE8BB;"
+                                ToolTip="关闭快捷键管理" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,20,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="320" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Padding="10"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid Margin="4,2,4,10">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="音频列表" />
+                                    <TextBlock HorizontalAlignment="Right"
+                                               FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding SoundHotkeyCountSummary}" />
+                                </Grid>
+                                <ListBox Grid.Row="1"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ItemsSource="{Binding Clips}"
+                                         SelectedItem="{Binding HotkeyEditingClip, Mode=TwoWay}">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="0,0,0,6" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="SelectionSurface"
+                                                                Padding="12,9"
+                                                                Background="#0AFFFFFF"
+                                                                BorderBrush="#18FFFFFF"
+                                                                BorderThickness="1"
+                                                                CornerRadius="11">
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="SelectionSurface" Property="Background" Value="#24E4B863" />
+                                                                <Setter TargetName="SelectionSurface" Property="BorderBrush" Value="#70E4B863" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="SelectionSurface" Property="BorderBrush" Value="#52FFFFFF" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               Text="{Binding Title}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Margin="0,3,0,0"
+                                                               FontSize="9"
+                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                        <Run Text="{Binding Category, Mode=OneWay}" />
+                                                        <Run Text="  ·  " />
+                                                        <Run Text="{Binding DurationText, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Cascadia Mono"
+                                                           FontSize="9"
+                                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                                           Text="{Binding HotkeyText}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="当前音频" />
+                            <TextBlock Margin="0,5,0,0"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding HotkeyEditingTitle}"
+                                       TextTrimming="CharacterEllipsis" />
+
+                            <TextBlock Margin="0,20,0,7"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="快捷键录入" />
+                            <Border Height="48" Style="{StaticResource GlassInputBorderStyle}">
+                                <Grid>
+                                    <TextBox x:Name="HotkeyCaptureBox"
+                                             Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             FontFamily="Cascadia Mono"
+                                             FontSize="14"
+                                             FontWeight="SemiBold"
+                                             IsReadOnly="True"
+                                             Text="{Binding HotkeyDraft, Mode=OneWay}"
+                                             PreviewKeyDown="HotkeyCaptureBox_PreviewKeyDown"
+                                             ToolTip="点击后直接按下组合键" />
+                                    <TextBlock Margin="14,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="点击这里，然后按下快捷键"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HotkeyDraft}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <TextBlock Margin="2,8,0,0"
+                                       MinHeight="34"
+                                       FontSize="10"
+                                       LineHeight="16"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="{Binding HotkeyCenterStatus}"
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                <Button Width="116"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding SaveHotkeyCommand}"
+                                        Content="保存绑定" />
+                                <Button Width="100"
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Command="{Binding ClearHotkeyCommand}"
+                                        Content="清除绑定" />
+                            </StackPanel>
+
+                            <Border Margin="0,22,0,16"
+                                    Height="1"
+                                    Background="#20FFFFFF" />
+
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="全局热键状态" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="10"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding SoundHotkeyRegistrationStatus}" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="紧急停止 Ctrl+Shift+F10 始终独立保留" />
+                                </StackPanel>
+                                <Button Width="154"
+                                        Height="34"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,4"
+                                        Command="{Binding ToggleSoundHotkeysCommand}"
+                                        Content="{Binding SoundHotkeyToggleText}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="9"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="字母或主键盘数字需要修饰键；F1–F24 与数字小键盘可单独使用。" />
+                        <Button Width="100"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource QuietButtonStyle}"
+                                Command="{Binding CloseHotkeyCenterCommand}"
+                                Content="完成" />
                     </Grid>
                 </Grid>
             </Border>

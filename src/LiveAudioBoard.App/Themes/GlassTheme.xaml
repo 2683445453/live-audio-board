@@ -35,6 +35,12 @@
         <GradientStop Offset="1" Color="#12FFFFFF" />
     </LinearGradientBrush>
 
+    <LinearGradientBrush x:Key="ModalSurfaceBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#F0222935" />
+        <GradientStop Offset="0.35" Color="#EC141B27" />
+        <GradientStop Offset="1" Color="#F0080D16" />
+    </LinearGradientBrush>
+
     <DrawingBrush x:Key="NoiseBrush"
                   TileMode="Tile"
                   Viewport="0,0,36,36"

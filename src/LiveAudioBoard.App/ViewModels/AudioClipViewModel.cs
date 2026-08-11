@@ -72,6 +72,12 @@ public partial class AudioClipViewModel : ObservableObject
         ? $"播放中 ×{ActivePlaybackCount}"
         : "播放";
 
+    public void SetHotkey(string? hotkey)
+    {
+        Model.Hotkey = string.IsNullOrWhiteSpace(hotkey) ? null : hotkey.Trim();
+        OnPropertyChanged(nameof(HotkeyText));
+    }
+
     partial void OnIsFavoriteChanged(bool value)
     {
         Model.IsFavorite = value;

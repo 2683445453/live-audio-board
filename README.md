@@ -11,6 +11,7 @@
 - 基于 NAudio/WASAPI 的 48 kHz 双声道多路混音；
 - Windows 输出设备选择、刷新与设置持久化；
 - 全局紧急停止热键 `Ctrl+Shift+F10`；
+- 单条音频全局快捷键录入、冲突检测、总览与临时停用；
 - 站内搜索 Freesound、Jamendo、Wikimedia Commons 的开放音频；
 - 搜索结果分页与下载前在线试听；
 - HTTP/HTTPS 音频下载、进度、取消、重试、许可证记录与自动导入；

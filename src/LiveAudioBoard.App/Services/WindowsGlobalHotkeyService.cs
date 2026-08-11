@@ -44,6 +44,18 @@ internal sealed class WindowsGlobalHotkeyService : IDisposable
         return true;
     }
 
+    public bool Unregister(int id)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_callbacks.Remove(id))
+        {
+            return false;
+        }
+
+        return UnregisterHotKey(_windowHandle, id);
+    }
+
     public void Dispose()
     {
         if (_disposed)

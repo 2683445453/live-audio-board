@@ -27,6 +27,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _suppressDeviceSelection;
     private bool _disposed;
 
+    public event EventHandler? HotkeyBindingsChanged;
+
     public MainViewModel(
         IAudioLibraryRepository repository,
         IAudioPlaybackService playbackService,
@@ -77,6 +79,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public string EmergencyStopHotkeyText => _settings.EmergencyStopHotkey;
 
+    public string SoundHotkeyToggleText => AreSoundHotkeysEnabled
+        ? "临时停用音效热键"
+        : "重新启用音效热键";
+
+    public string SoundHotkeyCountSummary
+    {
+        get
+        {
+            var count = Clips.Count(clip => !string.IsNullOrWhiteSpace(clip.Model.Hotkey));
+            return count == 0 ? "尚未绑定音效热键" : $"已绑定 {count} 条音效热键";
+        }
+    }
+
+    public string HotkeyEditingTitle =>
+        HotkeyEditingClip?.Title ?? "尚未选择音频";
+
     public string OutputDeviceName =>
         SelectedOutputDevice?.Name ?? "Windows 默认输出（自动）";
 
@@ -125,6 +143,29 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string emergencyHotkeyStatus = "正在注册紧急停止热键…";
 
+    [ObservableProperty]
+    private bool isHotkeyCenterOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HotkeyEditingTitle))]
+    [NotifyCanExecuteChangedFor(nameof(SaveHotkeyCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearHotkeyCommand))]
+    private AudioClipViewModel? hotkeyEditingClip;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveHotkeyCommand))]
+    private string hotkeyDraft = string.Empty;
+
+    [ObservableProperty]
+    private string hotkeyCenterStatus = "选择一条音频，然后点击输入框并按下快捷键。";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SoundHotkeyToggleText))]
+    private bool areSoundHotkeysEnabled = true;
+
+    [ObservableProperty]
+    private string soundHotkeyRegistrationStatus = "音效热键尚未注册";
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken);
@@ -150,6 +191,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnSelectedCategoryChanged(string value) => RefreshFilter();
 
     partial void OnFavoritesOnlyChanged(bool value) => RefreshFilter();
+
+    partial void OnHotkeyEditingClipChanged(AudioClipViewModel? value)
+    {
+        HotkeyDraft = value?.Model.Hotkey ?? string.Empty;
+        HotkeyCenterStatus = value is null
+            ? "请先选择一条音频。"
+            : $"正在编辑「{value.Title}」的快捷键";
+    }
 
     partial void OnSelectedOutputDeviceChanged(AudioOutputDevice? value)
     {
@@ -311,9 +360,138 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void OpenHotkeyCenter()
+    private void OpenHotkeyCenter(AudioClipViewModel? clip)
     {
-        StatusText = EmergencyHotkeyStatus;
+        HotkeyEditingClip = clip ?? SelectedClip ?? Clips.FirstOrDefault();
+        IsHotkeyCenterOpen = true;
+        HotkeyCenterStatus = HotkeyEditingClip is null
+            ? "资料库中还没有音频，请先导入或下载。"
+            : "点击快捷键输入框，然后直接按下组合键。";
+        StatusText = "快捷键管理已打开";
+    }
+
+    [RelayCommand]
+    private void CloseHotkeyCenter() => IsHotkeyCenterOpen = false;
+
+    [RelayCommand]
+    private void ToggleSoundHotkeys()
+    {
+        AreSoundHotkeysEnabled = !AreSoundHotkeysEnabled;
+        HotkeyCenterStatus = AreSoundHotkeysEnabled
+            ? "音效热键已重新启用。"
+            : "音效热键已临时停用；紧急停止热键仍然有效。";
+        HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void CaptureHotkey(GlobalHotkeyDefinition definition)
+    {
+        if (HotkeyEditingClip is null)
+        {
+            HotkeyCenterStatus = "请先选择一条音频。";
+            return;
+        }
+
+        if (!TryValidateHotkey(HotkeyEditingClip, definition, out var error))
+        {
+            HotkeyCenterStatus = error;
+            return;
+        }
+
+        HotkeyDraft = definition.DisplayName;
+        HotkeyCenterStatus = $"已录入 {definition.DisplayName}，点击“保存绑定”生效。";
+    }
+
+    internal void ReportHotkeyCaptureError(string error) =>
+        HotkeyCenterStatus = error;
+
+    [RelayCommand(CanExecute = nameof(CanSaveHotkey))]
+    private async Task SaveHotkeyAsync()
+    {
+        if (HotkeyEditingClip is null)
+        {
+            HotkeyCenterStatus = "请先选择一条音频。";
+            return;
+        }
+
+        if (!GlobalHotkeyDefinition.TryParse(
+                HotkeyDraft,
+                out var definition,
+                out var error))
+        {
+            HotkeyCenterStatus = error;
+            return;
+        }
+
+        if (!TryValidateHotkey(HotkeyEditingClip, definition, out error))
+        {
+            HotkeyCenterStatus = error;
+            return;
+        }
+
+        HotkeyEditingClip.SetHotkey(definition.DisplayName);
+        await _repository.UpsertAsync(HotkeyEditingClip.Model);
+        OnPropertyChanged(nameof(SoundHotkeyCountSummary));
+        ClearHotkeyCommand.NotifyCanExecuteChanged();
+        HotkeyCenterStatus = $"已将 {definition.DisplayName} 绑定到「{HotkeyEditingClip.Title}」。";
+        StatusText = HotkeyCenterStatus;
+        HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanSaveHotkey() =>
+        HotkeyEditingClip is not null && !string.IsNullOrWhiteSpace(HotkeyDraft);
+
+    [RelayCommand(CanExecute = nameof(CanClearHotkey))]
+    private async Task ClearHotkeyAsync()
+    {
+        if (HotkeyEditingClip is null)
+        {
+            return;
+        }
+
+        var title = HotkeyEditingClip.Title;
+        HotkeyEditingClip.SetHotkey(null);
+        HotkeyDraft = string.Empty;
+        await _repository.UpsertAsync(HotkeyEditingClip.Model);
+        OnPropertyChanged(nameof(SoundHotkeyCountSummary));
+        ClearHotkeyCommand.NotifyCanExecuteChanged();
+        HotkeyCenterStatus = $"已清除「{title}」的快捷键。";
+        StatusText = HotkeyCenterStatus;
+        HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanClearHotkey() =>
+        HotkeyEditingClip is not null &&
+        !string.IsNullOrWhiteSpace(HotkeyEditingClip.Model.Hotkey);
+
+    private bool TryValidateHotkey(
+        AudioClipViewModel target,
+        GlobalHotkeyDefinition definition,
+        out string error) =>
+        HotkeyBindingValidator.TryValidate(
+            target.Model.Id,
+            definition,
+            Clips.Select(clip => clip.Model),
+            out error);
+
+    public void SetSoundHotkeyRegistrationSummary(int registered, IReadOnlyList<string> failures)
+    {
+        if (!AreSoundHotkeysEnabled)
+        {
+            SoundHotkeyRegistrationStatus = "音效热键已临时停用";
+            return;
+        }
+
+        SoundHotkeyRegistrationStatus = failures.Count == 0
+            ? registered == 0
+                ? "尚未绑定音效热键"
+                : $"{registered} 条音效热键已启用"
+            : $"已启用 {registered} 条，{failures.Count} 条注册失败";
+
+        if (failures.Count > 0)
+        {
+            HotkeyCenterStatus = $"以下热键被系统或其他软件占用：{string.Join("、", failures)}";
+            StatusText = HotkeyCenterStatus;
+        }
     }
 
     public void SetEmergencyHotkeyRegistration(bool registered, int errorCode = 0)
