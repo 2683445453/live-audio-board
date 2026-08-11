@@ -76,6 +76,20 @@ public sealed class DownloadCenterViewModelTests
         Assert.Contains("已载入", viewModel.SearchSummary);
     }
 
+    [Fact]
+    public async Task OriginalFreesoundDownload_WithoutAuthorizationOpensConnectionMode()
+    {
+        var searchProvider = new FakeSearchProvider();
+        using var playbackService = new FakePlaybackService();
+        using var viewModel = CreateViewModel(searchProvider, playbackService);
+        var item = CreateRemoteItem("freesound-item");
+
+        await viewModel.DownloadFreesoundOriginalCommand.ExecuteAsync(item);
+
+        Assert.True(viewModel.IsFreesoundMode);
+        Assert.Contains("OAuth2", viewModel.FreesoundConnectionStatus);
+    }
+
     private static DownloadCenterViewModel CreateViewModel(
         IAudioSearchProvider searchProvider,
         IAudioPlaybackService playbackService,
@@ -84,9 +98,47 @@ public sealed class DownloadCenterViewModelTests
             new ProviderCatalog([]),
             searchProvider,
             feedProvider ?? new FakeFeedProvider(),
+            new FakeFreesoundApiService(),
             playbackService,
             Path.GetTempPath(),
             (_, _, _) => Task.FromResult(new AudioClip()));
+
+    private sealed class FakeFreesoundApiService : IFreesoundApiService
+    {
+        public Task<FreesoundConnectionState> GetConnectionStateAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(FreesoundConnectionState.NotConfigured);
+
+        public Task ConfigureCredentialsAsync(
+            string clientId,
+            string? clientSecret,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<Uri> CreateAuthorizationUriAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new Uri("https://freesound.org/apiv2/oauth2/authorize/"));
+
+        public Task<FreesoundConnectionState> CompleteAuthorizationAsync(
+            string authorizationCode,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(FreesoundConnectionState.NotConfigured);
+
+        public Task DisconnectAsync(
+            bool clearCredentials,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<string> GetValidAccessTokenAsync(
+            CancellationToken cancellationToken = default) =>
+            throw new FreesoundAuthorizationRequiredException("Not authorized");
+
+        public bool TryCreateOriginalDownloadUri(
+            RemoteAudioItem item,
+            out Uri? downloadUri)
+        {
+            downloadUri = null;
+            return false;
+        }
+    }
 
     private sealed class FakeFeedProvider(
         IReadOnlyList<RemoteAudioItem>? items = null) : IAudioFeedProvider

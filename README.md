@@ -32,6 +32,7 @@
 - 单条音频全局快捷键录入、冲突检测、总览与临时停用；
 - 站内搜索 Freesound、Jamendo、Wikimedia Commons 的开放音频；
 - 软件内载入 RSS 2.0、Media RSS 与 Atom Feed 的音频附件；
+- Freesound OAuth2 账户授权、原始高质量文件下载与 Access Token 自动刷新；
 - 搜索结果分页与下载前在线试听；
 - HTTP/HTTPS 音频下载、进度、取消、Range 断点续传、许可证记录与自动导入；
 - Velopack 每用户安装包、便携包、GitHub Release 与应用内自动更新；
@@ -98,6 +99,19 @@ Last-Modified 的来源会保留按 URL 隔离的 `.part` 续传状态；再次�
 “RSS / Atom”模式可直接载入播客、音效站或作者提供的公开 Feed，并在软件内试听和下载
 其中的音频附件。Feed 只负责发现公开链接，不代表自动获得使用权；每次下载前仍需查看
 来源页面中的许可证、署名和商业使用要求。
+
+Freesound 搜索结果右侧的“原文件”会调用官方 OAuth2 下载端点，保留上传者提供的 WAV、
+FLAC、AIFF 等原始格式，并复用直链下载器的进度、取消和安全断点续传。首次使用时：
+
+1. 在下载中心的“Freesound 授权”页点击“申请 API 凭据”，登录 Freesound 并创建应用；
+2. 选择凭据页提供的 Freesound 托管授权码显示页作为 Redirect URL；
+3. 将 Client ID 与 Client Secret 填入软件，点击“保存并打开授权页面”；
+4. 允许访问后复制页面显示的一次性授权码，粘贴回软件并完成连接。
+
+凭据、Access Token 和 Refresh Token 保存到 `%LOCALAPPDATA%\LiveAudioBoard\freesound.auth`，
+文件使用 Windows 当前用户 DPAPI 加密，不写入 `settings.json`，也不会进入 Git。Freesound
+API 凭据默认只允许非商业 API 使用；商业项目需先取得 Freesound 的许可。音频文件自身的
+Creative Commons 许可证与 API 使用条款相互独立，直播前仍须逐条核对署名和商业使用条件。
 
 在线试听固定使用“主播监听”设备，不会主动送入“直播输出”。若要可靠隔离直播与监听，
 请将“直播输出”设为 VB-CABLE、VoiceMeeter 等虚拟设备，并让 OBS 捕获该设备。OBS 的

@@ -952,7 +952,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            FontSize="10"
                            Foreground="{StaticResource TextMutedBrush}"
-                                   Text="MVP 0.20 · .NET 10 安装与自动更新" />
+                                   Text="MVP 0.21 · Freesound 原始文件授权下载" />
             </Grid>
         </Grid>
 
@@ -1195,12 +1195,28 @@
                             </Button.Style>
                         </Button>
                         <Button Width="110"
+                                Margin="0,0,8,0"
                                 Command="{Binding DownloadCenter.ShowDirectLinkModeCommand}"
                                 Content="音频直链">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding DownloadCenter.IsDirectLinkMode}" Value="True">
+                                            <Setter Property="Background" Value="#26E4B863" />
+                                            <Setter Property="BorderBrush" Value="#66E4B863" />
+                                            <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Width="136"
+                                Command="{Binding DownloadCenter.ShowFreesoundModeCommand}"
+                                Content="Freesound 授权">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource QuietButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
                                             <Setter Property="Background" Value="#26E4B863" />
                                             <Setter Property="BorderBrush" Value="#66E4B863" />
                                             <Setter Property="Foreground" Value="{StaticResource ChampagneTextBrush}" />
@@ -1218,6 +1234,9 @@
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding DownloadCenter.UseDirectLink}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -1338,6 +1357,8 @@
                                                     <ColumnDefinition Width="68" />
                                                     <ColumnDefinition Width="7" />
                                                     <ColumnDefinition Width="70" />
+                                                    <ColumnDefinition Width="7" />
+                                                    <ColumnDefinition Width="70" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock FontSize="13"
@@ -1372,6 +1393,23 @@
                                                         Command="{Binding DataContext.DownloadCenter.DownloadRemoteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"
                                                         Content="下载" />
+                                                <Button Grid.Column="7"
+                                                        Padding="8,6"
+                                                        Command="{Binding DataContext.DownloadCenter.DownloadFreesoundOriginalCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="原文件"
+                                                        ToolTip="通过 Freesound OAuth2 下载上传者提供的原始高质量文件">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SourceName}" Value="freesound">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -1474,6 +1512,116 @@
                                         Style="{StaticResource AccentButtonStyle}"
                                         Command="{Binding DownloadCenter.DownloadDirectCommand}"
                                         Content="{Binding DownloadCenter.PrimaryActionText}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Freesound OAuth2 configuration -->
+                    <Grid Grid.Row="2" Margin="0,16,0,0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DownloadCenter.IsFreesoundMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <StackPanel VerticalAlignment="Top">
+                            <Border Padding="13,10"
+                                    Background="#0FFFFFFF"
+                                    BorderBrush="#1FFFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="14">
+                                <Grid>
+                                    <TextBlock Margin="0,0,126,0"
+                                               FontSize="10"
+                                               LineHeight="17"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="原始文件下载需要免费的 Freesound API 凭据和账户授权。Client Secret 与令牌使用 Windows DPAPI 加密，仅当前用户可解密。" />
+                                    <Button Width="116"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource QuietButtonStyle}"
+                                            Padding="8,5"
+                                            Command="{Binding DownloadCenter.OpenFreesoundApiApplicationCommand}"
+                                            Content="申请 API 凭据" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Margin="2,0,0,6"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="Client ID" />
+                                    <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                        <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                                 Text="{Binding DownloadCenter.FreesoundClientId, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Margin="2,0,0,6"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="Client Secret（已保存时可留空）" />
+                                    <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                        <PasswordBox x:Name="FreesoundClientSecretBox"
+                                                     Padding="12,7"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                                     PasswordChanged="FreesoundClientSecretBox_PasswordChanged" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+
+                            <Button Width="204"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Command="{Binding DownloadCenter.BeginFreesoundAuthorizationCommand}"
+                                    Content="{Binding DownloadCenter.FreesoundAuthorizationActionText}"
+                                    Click="BeginFreesoundAuthorizationButton_Click" />
+
+                            <Grid Margin="0,13,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="128" />
+                                </Grid.ColumnDefinitions>
+                                <Border Height="40" Style="{StaticResource GlassInputBorderStyle}">
+                                    <TextBox Style="{StaticResource GlassPlainTextBoxStyle}"
+                                             Text="{Binding DownloadCenter.FreesoundAuthorizationCode, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="粘贴 Freesound 授权完成页显示的临时 code" />
+                                </Border>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        Command="{Binding DownloadCenter.CompleteFreesoundAuthorizationCommand}"
+                                        Content="完成账户连接" />
+                            </Grid>
+
+                            <Grid Margin="2,12,2,0">
+                                <TextBlock Margin="0,0,116,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="10"
+                                           Foreground="{StaticResource ChampagneTextBrush}"
+                                           Text="{Binding DownloadCenter.FreesoundConnectionStatus}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding DownloadCenter.FreesoundConnectionStatus}" />
+                                <Button Width="106"
+                                        HorizontalAlignment="Right"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,5"
+                                        Command="{Binding DownloadCenter.DisconnectFreesoundCommand}"
+                                        Content="清除本机授权" />
                             </Grid>
                         </StackPanel>
                     </Grid>

@@ -63,7 +63,7 @@ LiveAudioBoard/
 ### P2：内容来源与发布
 
 - RSS/Atom 音频附件浏览与 HTTP Range 断点续传已完成；多任务下载队列待发布阶段完善。
-- Freesound OAuth2 适配器并保存作者、来源和许可证。
+- Freesound OAuth2 适配器、Windows DPAPI 凭据存储、令牌刷新与原始文件下载。（已完成）
 - Internet Archive 等授权来源；平台适配器与播放核心隔离。
 - Velopack 每用户安装、便携包和应用内自动更新；GitHub 标签触发 Windows Release。（已完成）
 
@@ -109,7 +109,9 @@ SHA-256 去重、自动备份以及非破坏性起止点/循环/独占/淡入淡
 建议增益和峰值保护现可烘焙为新的 WAV、MP3 或 M4A 音效，原文件保持不变，生成结果自动
 进入内容寻址媒体库。RSS/Atom 音频附件浏览与安全断点续传也已落地。.NET 10 LTS、
 GitHub Actions、Velopack 每用户安装包、便携包、可选代码签名和应用内 GitHub Release
-更新也已完成；下一阶段进入 Freesound 高质量原文件授权。
+更新也已完成。Freesound OAuth2 浏览器授权、当前用户 DPAPI 加密凭据、Access Token 自动
+刷新、原始高质量文件下载及来源/作者/许可证入库也已落地；下一阶段完善多任务下载队列
+与更多明确授权来源。
 
 - [x] 技术路线与界面规范存档。
 - [x] 解决方案、分层项目、测试项目和 Git 仓库。
@@ -137,6 +139,6 @@ GitHub Actions、Velopack 每用户安装包、便携包、可选代码签名和
 - [x] 开放音频搜索结果分页、在线试听与单独停止试听。
 - [x] HTTP/HTTPS 下载、来源/许可证记录和完成后自动导入。
 - [x] RSS/Atom Feed 载入、音频附件试听下载与 ETag/Last-Modified 安全断点续传。
-- [ ] Freesound OAuth2 原始高质量文件下载。
+- [x] Freesound OAuth2、DPAPI 加密令牌、自动刷新与原始高质量文件下载。
 - [x] GitHub 远程仓库与首个可运行版本推送。
 - [x] .NET 10 LTS 迁移、GitHub Actions、Windows 安装包、便携包与应用内自动更新。

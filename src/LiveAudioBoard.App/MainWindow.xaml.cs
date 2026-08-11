@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Controls;
 using LiveAudioBoard.App.Services;
 using LiveAudioBoard.App.ViewModels;
 
@@ -52,6 +53,21 @@ public partial class MainWindow : Window
     {
         Close();
     }
+
+    private void FreesoundClientSecretBox_PasswordChanged(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel && sender is PasswordBox passwordBox)
+        {
+            viewModel.DownloadCenter.FreesoundClientSecret = passwordBox.Password;
+        }
+    }
+
+    private void BeginFreesoundAuthorizationButton_Click(
+        object sender,
+        RoutedEventArgs e) =>
+        FreesoundClientSecretBox.Clear();
 
     private void Window_DragOver(object sender, DragEventArgs e)
     {

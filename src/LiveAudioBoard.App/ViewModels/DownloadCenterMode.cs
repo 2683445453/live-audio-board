@@ -4,5 +4,6 @@ public enum DownloadCenterMode
 {
     Search,
     RssFeed,
-    DirectLink
+    DirectLink,
+    FreesoundAuthorization
 }

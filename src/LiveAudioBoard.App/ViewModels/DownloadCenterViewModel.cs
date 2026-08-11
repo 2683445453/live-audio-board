@@ -17,6 +17,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     private readonly ProviderCatalog _providerCatalog;
     private readonly IAudioSearchProvider _audioSearchProvider;
     private readonly IAudioFeedProvider _audioFeedProvider;
+    private readonly IFreesoundApiService _freesoundApiService;
     private readonly IAudioPlaybackService _playbackService;
     private readonly string _destinationDirectory;
     private readonly Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
@@ -32,6 +33,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
         IAudioFeedProvider audioFeedProvider,
+        IFreesoundApiService freesoundApiService,
         IAudioPlaybackService playbackService,
         string destinationDirectory,
         Func<DownloadResult, IDownloadProvider, CancellationToken, Task<AudioClip>>
@@ -40,6 +42,7 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         _providerCatalog = providerCatalog;
         _audioSearchProvider = audioSearchProvider;
         _audioFeedProvider = audioFeedProvider;
+        _freesoundApiService = freesoundApiService;
         _playbackService = playbackService;
         _destinationDirectory = Path.GetFullPath(destinationDirectory);
         _importDownloadedAudio = importDownloadedAudio;
@@ -59,9 +62,12 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     public bool IsDirectLinkMode => SelectedMode == DownloadCenterMode.DirectLink;
 
+    public bool IsFreesoundMode =>
+        SelectedMode == DownloadCenterMode.FreesoundAuthorization;
+
     public bool UseDirectLink => IsDirectLinkMode;
 
-    public bool IsBusy => IsSearching || IsDownloading;
+    public bool IsBusy => IsSearching || IsDownloading || IsFreesoundAuthorizing;
 
     public bool IsPreviewing => _previewPlaybackId.HasValue;
 
@@ -81,6 +87,10 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         ? "尚无已下载文件"
         : Path.GetFileName(DownloadedFilePath);
 
+    public string FreesoundAuthorizationActionText => IsFreesoundAuthorized
+        ? "重新打开授权页面"
+        : "保存并打开授权页面";
+
     [ObservableProperty]
     private bool isOpen;
 
@@ -88,10 +98,15 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsSearchMode))]
     [NotifyPropertyChangedFor(nameof(IsRssMode))]
     [NotifyPropertyChangedFor(nameof(IsDirectLinkMode))]
+    [NotifyPropertyChangedFor(nameof(IsFreesoundMode))]
     [NotifyPropertyChangedFor(nameof(UseDirectLink))]
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadFreesoundOriginalCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompleteFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectFreesoundCommand))]
     private DownloadCenterMode selectedMode = DownloadCenterMode.Search;
 
     [ObservableProperty]
@@ -129,10 +144,14 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadFreesoundOriginalCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompleteFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectFreesoundCommand))]
     private bool isSearching;
 
     [ObservableProperty]
@@ -153,11 +172,15 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
     [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadFreesoundOriginalCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
     [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(NextPageCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelDownloadCommand))]
     [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompleteFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectFreesoundCommand))]
     private bool isDownloading;
 
     [ObservableProperty]
@@ -174,6 +197,59 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(DownloadedFileName))]
     [NotifyCanExecuteChangedFor(nameof(OpenDownloadFolderCommand))]
     private string downloadedFilePath = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    private string freesoundClientId = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    private string freesoundClientSecret = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CompleteFreesoundAuthorizationCommand))]
+    private string freesoundAuthorizationCode = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FreesoundAuthorizationActionText))]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    private bool hasFreesoundCredentials;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FreesoundAuthorizationActionText))]
+    private bool isFreesoundAuthorized;
+
+    [ObservableProperty]
+    private string freesoundConnectionStatus =
+        "配置 Freesound API 凭据后，可下载搜索结果的原始高质量文件。";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBusy))]
+    [NotifyCanExecuteChangedFor(nameof(SearchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadFeedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadDirectCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadRemoteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadFreesoundOriginalCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TogglePreviewCommand))]
+    [NotifyCanExecuteChangedFor(nameof(BeginFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompleteFreesoundAuthorizationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectFreesoundCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
+    private bool isFreesoundAuthorizing;
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var state = await _freesoundApiService.GetConnectionStateAsync(
+                cancellationToken);
+            ApplyFreesoundConnectionState(state);
+        }
+        catch (Exception exception)
+        {
+            FreesoundConnectionStatus = $"无法读取 Freesound 授权：{exception.Message}";
+        }
+    }
 
     public void Open()
     {
@@ -228,6 +304,121 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
         SelectedMode = DownloadCenterMode.DirectLink;
         StatusText = "直链模式仅支持可直接访问的 HTTP/HTTPS 音频文件。";
     }
+
+    [RelayCommand]
+    private void ShowFreesoundMode()
+    {
+        StopPreviewCore();
+        SelectedMode = DownloadCenterMode.FreesoundAuthorization;
+        StatusText = FreesoundConnectionStatus;
+    }
+
+    [RelayCommand]
+    private static void OpenFreesoundApiApplication()
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "https://freesound.org/apiv2/apply",
+            UseShellExecute = true
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanBeginFreesoundAuthorization))]
+    private async Task BeginFreesoundAuthorizationAsync()
+    {
+        IsFreesoundAuthorizing = true;
+        FreesoundConnectionStatus = "正在安全保存应用凭据…";
+        try
+        {
+            await _freesoundApiService.ConfigureCredentialsAsync(
+                FreesoundClientId,
+                FreesoundClientSecret);
+            FreesoundClientSecret = string.Empty;
+            var authorizationUri = await _freesoundApiService.CreateAuthorizationUriAsync();
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = authorizationUri.AbsoluteUri,
+                UseShellExecute = true
+            });
+
+            var state = await _freesoundApiService.GetConnectionStateAsync();
+            ApplyFreesoundConnectionState(state);
+            FreesoundConnectionStatus =
+                "浏览器已打开。允许访问后复制页面显示的授权码，粘贴到下方完成连接。";
+            StatusText = FreesoundConnectionStatus;
+        }
+        catch (Exception exception)
+        {
+            FreesoundConnectionStatus = $"无法开始授权：{exception.Message}";
+            StatusText = FreesoundConnectionStatus;
+        }
+        finally
+        {
+            IsFreesoundAuthorizing = false;
+        }
+    }
+
+    private bool CanBeginFreesoundAuthorization() =>
+        IsFreesoundMode &&
+        !IsBusy &&
+        !string.IsNullOrWhiteSpace(FreesoundClientId) &&
+        (HasFreesoundCredentials || !string.IsNullOrWhiteSpace(FreesoundClientSecret));
+
+    [RelayCommand(CanExecute = nameof(CanCompleteFreesoundAuthorization))]
+    private async Task CompleteFreesoundAuthorizationAsync()
+    {
+        IsFreesoundAuthorizing = true;
+        FreesoundConnectionStatus = "正在交换 Freesound 访问令牌…";
+        try
+        {
+            var state = await _freesoundApiService.CompleteAuthorizationAsync(
+                FreesoundAuthorizationCode);
+            FreesoundAuthorizationCode = string.Empty;
+            ApplyFreesoundConnectionState(state);
+            StatusText = FreesoundConnectionStatus;
+        }
+        catch (Exception exception)
+        {
+            FreesoundConnectionStatus = $"授权失败：{exception.Message}";
+            StatusText = FreesoundConnectionStatus;
+        }
+        finally
+        {
+            IsFreesoundAuthorizing = false;
+        }
+    }
+
+    private bool CanCompleteFreesoundAuthorization() =>
+        IsFreesoundMode &&
+        !IsBusy &&
+        HasFreesoundCredentials &&
+        !string.IsNullOrWhiteSpace(FreesoundAuthorizationCode);
+
+    [RelayCommand(CanExecute = nameof(CanDisconnectFreesound))]
+    private async Task DisconnectFreesoundAsync()
+    {
+        IsFreesoundAuthorizing = true;
+        try
+        {
+            await _freesoundApiService.DisconnectAsync(clearCredentials: true);
+            FreesoundClientId = string.Empty;
+            FreesoundClientSecret = string.Empty;
+            FreesoundAuthorizationCode = string.Empty;
+            ApplyFreesoundConnectionState(FreesoundConnectionState.NotConfigured);
+            StatusText = FreesoundConnectionStatus;
+        }
+        catch (Exception exception)
+        {
+            FreesoundConnectionStatus = $"清除授权失败：{exception.Message}";
+        }
+        finally
+        {
+            IsFreesoundAuthorizing = false;
+        }
+    }
+
+    private bool CanDisconnectFreesound() =>
+        IsFreesoundMode && !IsBusy && HasFreesoundCredentials;
 
     [RelayCommand(CanExecute = nameof(CanSearch))]
     private Task SearchAsync() => SearchPageAsync(1);
@@ -424,7 +615,42 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
             : DownloadCoreAsync(item.AudioUri, item);
 
     private bool CanDownloadRemote(RemoteAudioItem? item) =>
-        !IsDirectLinkMode && !IsBusy && item is not null;
+        !IsDirectLinkMode && !IsFreesoundMode && !IsBusy && item is not null;
+
+    [RelayCommand(CanExecute = nameof(CanDownloadFreesoundOriginal))]
+    private async Task DownloadFreesoundOriginalAsync(RemoteAudioItem? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var state = await _freesoundApiService.GetConnectionStateAsync();
+        ApplyFreesoundConnectionState(state);
+        if (!state.IsAuthorized)
+        {
+            ShowFreesoundMode();
+            FreesoundConnectionStatus =
+                "下载原始文件需要 Freesound OAuth2 授权，请先完成账户连接。";
+            StatusText = FreesoundConnectionStatus;
+            return;
+        }
+
+        if (!_freesoundApiService.TryCreateOriginalDownloadUri(item, out var downloadUri) ||
+            downloadUri is null)
+        {
+            StatusText = "该搜索结果缺少可识别的 Freesound 声音编号，请查看来源后重试。";
+            return;
+        }
+
+        await DownloadCoreAsync(downloadUri, item);
+    }
+
+    private bool CanDownloadFreesoundOriginal(RemoteAudioItem? item) =>
+        IsSearchMode &&
+        !IsBusy &&
+        item is not null &&
+        item.SourceName.Equals("freesound", StringComparison.OrdinalIgnoreCase);
 
     [RelayCommand(CanExecute = nameof(CanDownloadDirect))]
     private async Task DownloadDirectAsync()
@@ -518,6 +744,14 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
             LastAttemptFailed = true;
             StatusText = "下载已取消；支持续传的来源会保留临时进度，重试即可继续。";
         }
+        catch (FreesoundAuthorizationRequiredException exception)
+        {
+            LastAttemptFailed = true;
+            IsFreesoundAuthorized = false;
+            ShowFreesoundMode();
+            FreesoundConnectionStatus = exception.Message;
+            StatusText = FreesoundConnectionStatus;
+        }
         catch (Exception exception)
         {
             LastAttemptFailed = true;
@@ -565,6 +799,21 @@ public partial class DownloadCenterViewModel : ObservableObject, IDisposable
 
     private bool CanOpenDownloadFolder() =>
         !string.IsNullOrWhiteSpace(DownloadedFilePath) && File.Exists(DownloadedFilePath);
+
+    private void ApplyFreesoundConnectionState(FreesoundConnectionState state)
+    {
+        HasFreesoundCredentials = state.IsConfigured;
+        IsFreesoundAuthorized = state.IsAuthorized;
+        FreesoundClientId = state.ClientId;
+        FreesoundConnectionStatus = state switch
+        {
+            { IsAuthorized: true, UserName.Length: > 0 } =>
+                $"已连接 Freesound · {state.UserName} · 可下载原始文件",
+            { IsAuthorized: true } => "已连接 Freesound · 可下载原始高质量文件",
+            { IsConfigured: true } => "应用凭据已安全保存，等待完成账户授权。",
+            _ => "尚未配置 Freesound；凭据和令牌只会加密保存在当前 Windows 用户下。"
+        };
+    }
 
     private void OnPlaybackStateChanged(object? sender, PlaybackStateChangedEventArgs args)
     {

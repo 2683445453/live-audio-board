@@ -63,6 +63,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
         IAudioFeedProvider audioFeedProvider,
+        IFreesoundApiService freesoundApiService,
         IAppUpdateService appUpdateService)
     {
         _repository = repository;
@@ -98,6 +99,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             providerCatalog,
             audioSearchProvider,
             audioFeedProvider,
+            freesoundApiService,
             playbackService,
             downloadDirectory,
             ImportDownloadedAudioAsync);
@@ -509,6 +511,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken);
+        await DownloadCenter.InitializeAsync(cancellationToken);
 
         var clips = await _repository.GetAllAsync(cancellationToken);
         var orderResult = AudioClipOrderService.Normalize(clips);

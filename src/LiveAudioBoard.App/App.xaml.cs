@@ -48,8 +48,13 @@ public partial class App : Application
             }
 
             _playbackService = new NaudioPlaybackService();
+            var freesoundApiService = new FreesoundApiService(
+                DpapiFreesoundCredentialStore.CreateDefault());
             var providerCatalog = new ProviderCatalog(
-                [new DirectHttpDownloadProvider()]);
+                [
+                    new FreesoundOriginalDownloadProvider(freesoundApiService),
+                    new DirectHttpDownloadProvider()
+                ]);
             var audioSearchProvider = new OpenverseAudioSearchProvider();
             var viewModel = new MainViewModel(
                 repository,
@@ -64,6 +69,7 @@ public partial class App : Application
                 providerCatalog,
                 audioSearchProvider,
                 new RssAudioFeedProvider(),
+                freesoundApiService,
                 new VelopackAppUpdateService());
 
             await viewModel.InitializeAsync();
