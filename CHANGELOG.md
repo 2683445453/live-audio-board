@@ -5,6 +5,15 @@ All notable changes to LiveAudioBoard are documented in this file. The project f
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [0.22.1] - 2026-08-13
+
+### Added
+
+- Editable per-audio categories for imported, downloaded, recorded, and rendered library items.
+- Non-destructive waveform trimming with draggable start/end handles and movable selections.
+
 ### Fixed
 
 - Prevented underlying library content from bleeding through the recording modal.
@@ -45,5 +54,6 @@ All notable changes to LiveAudioBoard are documented in this file. The project f
 - Runtime dependencies are scanned for known NuGet vulnerabilities in release verification.
 - Project licensing standardized on PolyForm Noncommercial 1.0.0 with separate commercial licensing.
 
-[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/2683445453/live-audio-board/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/2683445453/live-audio-board/releases/tag/v0.22.0

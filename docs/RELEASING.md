@@ -29,21 +29,21 @@ PATCH。预发布版本可以使用 `0.23.0-beta.1`。
 ## 3. 本地验收
 
 ```powershell
-./scripts/verify-release-metadata.ps1 -Version 0.22.0
+./scripts/verify-release-metadata.ps1 -Version 0.22.1
 dotnet restore LiveAudioBoard.sln
 dotnet format LiveAudioBoard.sln --verify-no-changes --no-restore
 dotnet build LiveAudioBoard.sln --configuration Release --no-restore
 dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
 dotnet list LiveAudioBoard.sln package --vulnerable --include-transitive
-./scripts/build-release.ps1 -Version 0.22.0
+./scripts/build-release.ps1 -Version 0.22.1
 ```
 
 检查 `artifacts/release-local/releases` 中至少存在：
 
 - `LiveAudioBoard-win-Setup.exe`；
 - `LiveAudioBoard-win.msi`；
-- `LiveAudioBoard-0.22.0-full.nupkg`；
-- `LiveAudioBoard-0.22.0-win-x64-portable.zip`；
+- `LiveAudioBoard-0.22.1-full.nupkg`；
+- `LiveAudioBoard-0.22.1-win-x64-portable.zip`；
 - `SHA256SUMS.txt`。
 
 随后从 `artifacts/release-local/publish/win-x64/LiveAudioBoard.exe` 做一次启动烟雾测试，并确认
@@ -67,8 +67,8 @@ git switch main
 git pull --ff-only origin main
 git merge --ff-only <validated-release-branch>
 git push origin main
-git tag -a v0.22.0 -m "LiveAudioBoard 0.22.0"
-git push origin v0.22.0
+git tag -a v0.22.1 -m "LiveAudioBoard 0.22.1"
+git push origin v0.22.1
 ```
 
 禁止给不属于 `main` 的提交打正式标签。标签触发 `.github/workflows/release.yml`，流水线会再次

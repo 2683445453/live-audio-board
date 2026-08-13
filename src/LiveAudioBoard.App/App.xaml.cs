@@ -70,6 +70,7 @@ public partial class App : Application
                 JsonAppSettingsStore.CreateDefault(),
                 Sha256LibraryMediaStore.CreateDefault(),
                 new EbuR128LoudnessAnalyzer(),
+                new NaudioAudioWaveformAnalyzer(),
                 providerCatalog,
                 audioSearchProvider,
                 new RssAudioFeedProvider(),

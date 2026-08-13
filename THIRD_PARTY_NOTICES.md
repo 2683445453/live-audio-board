@@ -4,7 +4,7 @@ LiveAudioBoard includes or depends on third-party components. Those components r
 their own licenses; the project's PolyForm Noncommercial license does not replace or narrow rights
 granted by a third-party license.
 
-| Component | Version used by v0.22.0 | License |
+| Component | Version used by v0.22.1 | License |
 | --- | ---: | --- |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT |
 | Microsoft Entity Framework Core / Microsoft.Data.Sqlite | 10.0.10 | MIT |

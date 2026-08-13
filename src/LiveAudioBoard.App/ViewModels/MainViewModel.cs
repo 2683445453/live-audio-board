@@ -35,6 +35,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IAppSettingsStore _settingsStore;
     private readonly ILibraryMediaStore _mediaStore;
     private readonly IAudioLoudnessAnalyzer _loudnessAnalyzer;
+    private readonly IAudioWaveformAnalyzer _waveformAnalyzer;
     private readonly IAppUpdateService _appUpdateService;
     private readonly AudioImportPathResolver _audioImportPathResolver = new();
     private readonly LoudnessBatchAnalysisService _loudnessBatchAnalysisService;
@@ -44,8 +45,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private AppSettings _settings = new();
     private CancellationTokenSource? _loudnessAnalysisCancellation;
     private CancellationTokenSource? _batchLoudnessAnalysisCancellation;
+    private CancellationTokenSource? _waveformAnalysisCancellation;
     private Guid? _primaryPlaybackId;
     private bool _suppressDeviceSelection;
+    private bool _isNormalizingPlaybackTrim;
     private bool _disposed;
 
     public event EventHandler? HotkeyBindingsChanged;
@@ -60,6 +63,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IAppSettingsStore settingsStore,
         ILibraryMediaStore mediaStore,
         IAudioLoudnessAnalyzer loudnessAnalyzer,
+        IAudioWaveformAnalyzer waveformAnalyzer,
         ProviderCatalog providerCatalog,
         IAudioSearchProvider audioSearchProvider,
         IAudioFeedProvider audioFeedProvider,
@@ -75,6 +79,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsStore = settingsStore;
         _mediaStore = mediaStore;
         _loudnessAnalyzer = loudnessAnalyzer;
+        _waveformAnalyzer = waveformAnalyzer;
         _appUpdateService = appUpdateService;
         _loudnessBatchAnalysisService = new LoudnessBatchAnalysisService(
             repository,
@@ -215,6 +220,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string PlaybackTrimDraftSummary =>
         $"{FormatPlaybackDuration((long)PlaybackStartDraft)} – " +
         $"{FormatPlaybackDuration((long)PlaybackEndDraft)}";
+
+    public string PlaybackTrimLengthSummary =>
+        $"保留 {FormatPlaybackDuration((long)Math.Max(0d, PlaybackEndDraft - PlaybackStartDraft))}";
 
     public string PlaybackLoudnessSummary =>
         PlaybackEditingClip?.LoudnessSummary ?? "尚未选择音频";
@@ -424,6 +432,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private PlaybackRouteChoice playbackRouteDraft = PlaybackRouteChoice.LiveAndMonitor;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SavePlaybackSettingsCommand))]
+    private string playbackCategoryDraft = LibraryCategoryName.Unclassified;
+
+    [ObservableProperty]
     private int playbackFadeInDraft;
 
     [ObservableProperty]
@@ -442,14 +454,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlaybackTrimDraftSummary))]
+    [NotifyPropertyChangedFor(nameof(PlaybackTrimLengthSummary))]
     private double playbackStartDraft;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlaybackTrimDraftSummary))]
+    [NotifyPropertyChangedFor(nameof(PlaybackTrimLengthSummary))]
     private double playbackEndDraft;
 
     [ObservableProperty]
     private double playbackTrimMaximum = 1d;
+
+    [ObservableProperty]
+    private IReadOnlyList<float> playbackWaveformPeaks = Array.Empty<float>();
+
+    [ObservableProperty]
+    private bool isWaveformLoading;
+
+    [ObservableProperty]
+    private string playbackWaveformStatus = "选择音频后生成波形";
 
     [ObservableProperty]
     private AudioExportFormatChoice selectedExportFormat = AudioExportFormatChoice.Wav;
@@ -703,25 +726,46 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackRouteDraft = PlaybackRouteOptions.FirstOrDefault(choice =>
             choice.Route == (value?.Model.PlaybackRoute ?? AudioPlaybackRoute.LiveAndMonitor)) ??
             PlaybackRouteChoice.LiveAndMonitor;
+        PlaybackCategoryDraft = value?.Category ?? LibraryCategoryName.Unclassified;
         PlaybackFadeInDraft = NormalizeFadeDuration(value?.Model.FadeInMilliseconds ?? 0);
         PlaybackFadeOutDraft = NormalizeFadeDuration(value?.Model.FadeOutMilliseconds ?? 0);
         PlaybackUseRecommendedGainDraft = value?.Model.UseRecommendedGain ?? false;
         PlaybackPeakProtectionDraft = value?.Model.EnablePeakProtection ?? true;
         PlaybackCooldownDraft = NormalizeCooldownDuration(
             value?.Model.PlaybackCooldownMilliseconds ?? 0);
-        PlaybackTrimMaximum = Math.Max(1d, value?.Model.DurationMilliseconds ?? 1d);
-        PlaybackStartDraft = Math.Clamp(
+        PlaybackTrimMaximum = Math.Max(
+            PlaybackTrimSelection.MinimumLengthMilliseconds,
+            value?.Model.DurationMilliseconds ?? PlaybackTrimSelection.MinimumLengthMilliseconds);
+        ApplyPlaybackTrimSelection(PlaybackTrimSelection.Create(
             value?.Model.StartOffsetMilliseconds ?? 0,
-            0d,
-            PlaybackTrimMaximum);
-        PlaybackEndDraft = value?.Model.EndOffsetMilliseconds > 0
-            ? Math.Clamp(value.Model.EndOffsetMilliseconds, 0d, PlaybackTrimMaximum)
-            : PlaybackTrimMaximum;
+            value?.Model.EndOffsetMilliseconds ?? 0,
+            (long)Math.Round(PlaybackTrimMaximum)));
         OnPropertyChanged(nameof(PlaybackLoudnessSummary));
         OnPropertyChanged(nameof(RecommendedGainDraftText));
         PlaybackSettingsStatus = value is null
             ? "请先选择一条音频。"
             : "设置只影响后续播放，不会修改原始音频文件。";
+        BeginWaveformAnalysis(value);
+    }
+
+    partial void OnPlaybackStartDraftChanged(double value)
+    {
+        if (_isNormalizingPlaybackTrim)
+        {
+            return;
+        }
+
+        ApplyPlaybackTrimSelection(GetPlaybackTrimSelection().WithStart((long)Math.Round(value)));
+    }
+
+    partial void OnPlaybackEndDraftChanged(double value)
+    {
+        if (_isNormalizingPlaybackTrim)
+        {
+            return;
+        }
+
+        ApplyPlaybackTrimSelection(GetPlaybackTrimSelection().WithEnd((long)Math.Round(value)));
     }
 
     partial void OnSelectedOutputDeviceChanged(AudioOutputDevice? value)
@@ -1130,7 +1174,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsPlaybackSettingsOpen = true;
         StatusText = PlaybackEditingClip?.IsFileMissing == true
             ? $"「{PlaybackEditingClip.Title}」的文件已缺失，请先重新定位"
-            : "播放设置已打开";
+            : "音频设置已打开";
     }
 
     [RelayCommand]
@@ -1162,8 +1206,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ResetPlaybackTrim()
     {
-        PlaybackStartDraft = 0;
-        PlaybackEndDraft = PlaybackTrimMaximum;
+        ApplyPlaybackTrimSelection(GetPlaybackTrimSelection().ExpandToFullClip());
         PlaybackSettingsStatus = "播放区间已恢复为完整音频，保存后生效。";
     }
 
@@ -1325,11 +1368,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (PlaybackEndDraft - PlaybackStartDraft < 1d)
-        {
-            PlaybackSettingsStatus = "结束点必须晚于开始点。";
-            return;
-        }
+        var trimSelection = GetPlaybackTrimSelection();
 
         if (PlaybackUseRecommendedGainDraft &&
             !PlaybackEditingClip.Model.RecommendedGainDb.HasValue)
@@ -1346,22 +1385,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackEditingClip.Model.LoopPlayback = PlaybackLoopDraft;
         PlaybackEditingClip.Model.ExclusivePlayback = PlaybackExclusiveDraft;
         PlaybackEditingClip.Model.PlaybackRoute = PlaybackRouteDraft.Route;
+        var previousCategory = PlaybackEditingClip.Category;
+        var category = LibraryCategoryName.Resolve(PlaybackCategoryDraft, Categories);
+        PlaybackEditingClip.Model.Category = category;
         PlaybackEditingClip.Model.FadeInMilliseconds = NormalizeFadeDuration(PlaybackFadeInDraft);
         PlaybackEditingClip.Model.FadeOutMilliseconds = NormalizeFadeDuration(PlaybackFadeOutDraft);
         PlaybackEditingClip.Model.UseRecommendedGain = PlaybackUseRecommendedGainDraft;
         PlaybackEditingClip.Model.EnablePeakProtection = PlaybackPeakProtectionDraft;
         PlaybackEditingClip.Model.PlaybackCooldownMilliseconds =
             NormalizeCooldownDuration(PlaybackCooldownDraft);
-        PlaybackEditingClip.Model.StartOffsetMilliseconds = (long)Math.Round(PlaybackStartDraft);
-        PlaybackEditingClip.Model.EndOffsetMilliseconds =
-            PlaybackEndDraft >= PlaybackTrimMaximum - 1d
-                ? 0
-                : (long)Math.Round(PlaybackEndDraft);
+        PlaybackEditingClip.Model.StartOffsetMilliseconds = trimSelection.StartMilliseconds;
+        PlaybackEditingClip.Model.EndOffsetMilliseconds = trimSelection.ToStoredEndOffset();
         await _repository.UpsertAsync(PlaybackEditingClip.Model);
         PlaybackEditingClip.RefreshPlaybackSettings();
+        PlaybackEditingClip.RefreshLibraryPlacement();
+        EnsureCategory(category);
+        PlaybackCategoryDraft = category;
+        if (string.Equals(SelectedCategory, previousCategory, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedCategory = category;
+        }
+        else
+        {
+            RefreshFilter();
+        }
 
-        PlaybackSettingsStatus = "播放设置已保存，将从下一次播放开始生效。";
-        StatusText = $"已保存「{PlaybackEditingClip.Title}」的播放设置";
+        PlaybackSettingsStatus = "音频设置已保存，将从下一次播放开始生效。";
+        StatusText = $"已保存「{PlaybackEditingClip.Title}」的音频设置";
     }
 
     [RelayCommand(CanExecute = nameof(CanRenderAsNewAudio))]
@@ -1373,11 +1423,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (PlaybackEndDraft - PlaybackStartDraft < 1d)
-        {
-            PlaybackSettingsStatus = "结束点必须晚于开始点。";
-            return;
-        }
+        var trimSelection = GetPlaybackTrimSelection();
 
         if (PlaybackUseRecommendedGainDraft &&
             !sourceClip.Model.RecommendedGainDb.HasValue)
@@ -1407,8 +1453,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     sourceClip.Model.Volume,
                     NormalizeFadeDuration(PlaybackFadeInDraft),
                     NormalizeFadeDuration(PlaybackFadeOutDraft),
-                    (long)Math.Round(PlaybackStartDraft),
-                    (long)Math.Round(PlaybackEndDraft),
+                    trimSelection.StartMilliseconds,
+                    trimSelection.EndMilliseconds,
                     PlaybackUseRecommendedGainDraft
                         ? sourceClip.Model.RecommendedGainDb ?? 0d
                         : 0d,
@@ -1450,7 +1496,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     ? metadata.DurationMilliseconds
                     : renderResult.DurationMilliseconds,
                 SourceProvider = "rendered-export",
-                License = $"由「{sourceClip.Title}」的播放设置生成"
+                License = $"由「{sourceClip.Title}」的音频设置生成"
             };
 
             await _repository.UpsertAsync(clip);
@@ -1524,6 +1570,95 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private int NormalizeCooldownDuration(int value) =>
         CooldownDurationOptions.Contains(value) ? value : 0;
+
+    private PlaybackTrimSelection GetPlaybackTrimSelection() =>
+        PlaybackTrimSelection.Create(
+            (long)Math.Round(PlaybackStartDraft),
+            (long)Math.Round(PlaybackEndDraft),
+            (long)Math.Round(PlaybackTrimMaximum));
+
+    private void ApplyPlaybackTrimSelection(PlaybackTrimSelection selection)
+    {
+        _isNormalizingPlaybackTrim = true;
+        try
+        {
+            PlaybackStartDraft = selection.StartMilliseconds;
+            PlaybackEndDraft = selection.EndMilliseconds;
+        }
+        finally
+        {
+            _isNormalizingPlaybackTrim = false;
+        }
+    }
+
+    private void BeginWaveformAnalysis(AudioClipViewModel? clip)
+    {
+        _waveformAnalysisCancellation?.Cancel();
+        _waveformAnalysisCancellation?.Dispose();
+        _waveformAnalysisCancellation = null;
+        PlaybackWaveformPeaks = Array.Empty<float>();
+
+        if (clip is null)
+        {
+            IsWaveformLoading = false;
+            PlaybackWaveformStatus = "选择音频后生成波形";
+            return;
+        }
+
+        if (clip.IsFileMissing)
+        {
+            IsWaveformLoading = false;
+            PlaybackWaveformStatus = "源文件缺失，无法生成波形";
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _waveformAnalysisCancellation = cancellation;
+        IsWaveformLoading = true;
+        PlaybackWaveformStatus = "正在分析波形…";
+        _ = AnalyzeWaveformAsync(clip, cancellation);
+    }
+
+    private async Task AnalyzeWaveformAsync(
+        AudioClipViewModel clip,
+        CancellationTokenSource cancellation)
+    {
+        try
+        {
+            var waveform = await _waveformAnalyzer.AnalyzeAsync(
+                clip.FilePath,
+                cancellationToken: cancellation.Token);
+            if (!ReferenceEquals(_waveformAnalysisCancellation, cancellation) ||
+                !ReferenceEquals(PlaybackEditingClip, clip))
+            {
+                return;
+            }
+
+            PlaybackWaveformPeaks = waveform.Peaks;
+            PlaybackWaveformStatus = waveform.HasPeaks
+                ? "拖动左右手柄裁切；拖动选区可整体移动"
+                : "音频中没有可显示的波形";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(_waveformAnalysisCancellation, cancellation))
+            {
+                PlaybackWaveformStatus = $"波形生成失败：{exception.Message}";
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_waveformAnalysisCancellation, cancellation))
+            {
+                IsWaveformLoading = false;
+                _waveformAnalysisCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+    }
 
     [RelayCommand]
     private void StopAll()
@@ -1627,26 +1762,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public async Task MoveClipToCategoryAsync(Guid clipId, string category)
     {
-        if (string.IsNullOrWhiteSpace(category))
-        {
-            return;
-        }
+        var resolvedCategory = LibraryCategoryName.Resolve(category, Categories);
 
         var clip = Clips.FirstOrDefault(item => item.Model.Id == clipId);
         if (clip is null || string.Equals(
                 clip.Category,
-                category,
+                resolvedCategory,
                 StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        clip.Model.Category = category;
+        clip.Model.Category = resolvedCategory;
         await _repository.UpsertAsync(clip.Model);
         clip.RefreshLibraryPlacement();
-        EnsureCategory(category);
+        EnsureCategory(resolvedCategory);
         RefreshFilter();
-        StatusText = $"已将「{clip.Title}」移动到「{category}」";
+        StatusText = $"已将「{clip.Title}」移动到「{resolvedCategory}」";
     }
 
     [RelayCommand]
@@ -1909,9 +2041,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void EnsureCategory(string category)
     {
-        if (!string.IsNullOrWhiteSpace(category) && !Categories.Contains(category))
+        var normalized = LibraryCategoryName.Resolve(category, Categories);
+        if (!Categories.Contains(normalized))
         {
-            Categories.Add(category);
+            Categories.Add(normalized);
         }
     }
 
@@ -2291,6 +2424,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _loudnessAnalysisCancellation = null;
         _batchLoudnessAnalysisCancellation?.Cancel();
         _batchLoudnessAnalysisCancellation = null;
+        _waveformAnalysisCancellation?.Cancel();
+        _waveformAnalysisCancellation?.Dispose();
+        _waveformAnalysisCancellation = null;
         _playbackProgressTimer.Stop();
         _playbackProgressTimer.Tick -= OnPlaybackProgressTick;
         DownloadCenter.Dispose();

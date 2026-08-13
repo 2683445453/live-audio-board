@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:controls="clr-namespace:LiveAudioBoard.App.Controls"
         mc:Ignorable="d"
         Title="LiveAudioBoard"
         Width="1240"
@@ -506,7 +507,7 @@
                                                                 Command="{Binding DataContext.OpenPlaybackSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}"
                                                                 Content="&#xE713;"
-                                                                ToolTip="循环、独占与淡入淡出" />
+                                                                ToolTip="分类、波形裁切、循环与独占设置" />
                                                         <Button Width="34"
                                                                 Height="34"
                                                                 Style="{StaticResource QuietButtonStyle}"
@@ -1811,11 +1812,11 @@
                             <TextBlock FontSize="23"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                       Text="播放设置" />
+                                       Text="音频设置" />
                             <TextBlock Margin="0,4,0,0"
                                        FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Text="路由、起止点、循环与淡入淡出均为非破坏性设置" />
+                                       Text="分类、路由、波形裁切、循环与淡入淡出设置" />
                         </StackPanel>
                         <Button Width="38"
                                 Height="36"
@@ -1824,7 +1825,7 @@
                                 Style="{StaticResource WindowButtonStyle}"
                                 Command="{Binding ClosePlaybackSettingsCommand}"
                                 Content="&#xE8BB;"
-                                ToolTip="关闭播放设置" />
+                                ToolTip="关闭音频设置" />
                     </Grid>
 
                     <ScrollViewer Grid.Row="1"
@@ -1844,7 +1845,41 @@
                                    Text="{Binding PlaybackEditingTitle}"
                                    TextTrimming="CharacterEllipsis" />
 
-                        <Grid Margin="0,22,0,0">
+                        <Border Margin="0,16,0,0"
+                                Padding="18"
+                                Background="#0FFFFFFF"
+                                BorderBrush="#1FFFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="260" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
+                                    <TextBlock FontSize="11"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Text="音频分类" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="选择已有分类，或直接输入一个新分类；保存设置后生效。"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1"
+                                          Height="42"
+                                          VerticalAlignment="Center"
+                                          AutomationProperties.Name="音频分类"
+                                          Style="{StaticResource GlassComboBoxStyle}"
+                                          IsEditable="True"
+                                          IsTextSearchEnabled="True"
+                                          StaysOpenOnEdit="True"
+                                          ItemsSource="{Binding Categories}"
+                                          Text="{Binding PlaybackCategoryDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </Border>
+
+                        <Grid Margin="0,14,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="12" />
@@ -1987,27 +2022,43 @@
                                             Content="恢复完整" />
                                 </Grid>
 
-                                <TextBlock Margin="0,14,0,3"
-                                           FontSize="9"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           Text="开始点" />
-                                <Slider Style="{StaticResource GlassSliderStyle}"
-                                        Minimum="0"
-                                        Maximum="{Binding PlaybackTrimMaximum}"
-                                        SmallChange="100"
-                                        LargeChange="1000"
-                                        Value="{Binding PlaybackStartDraft, Mode=TwoWay}" />
-
-                                <TextBlock Margin="0,8,0,3"
-                                           FontSize="9"
-                                           Foreground="{StaticResource TextMutedBrush}"
-                                           Text="结束点" />
-                                <Slider Style="{StaticResource GlassSliderStyle}"
-                                        Minimum="0"
-                                        Maximum="{Binding PlaybackTrimMaximum}"
-                                        SmallChange="100"
-                                        LargeChange="1000"
-                                        Value="{Binding PlaybackEndDraft, Mode=TwoWay}" />
+                                <Grid Margin="0,14,0,0">
+                                    <controls:WaveformTrimControl Height="132"
+                                                                  AutomationProperties.Name="播放区间波形裁切"
+                                                                  DurationMilliseconds="{Binding PlaybackTrimMaximum}"
+                                                                  Peaks="{Binding PlaybackWaveformPeaks}"
+                                                                  SelectionStartMilliseconds="{Binding PlaybackStartDraft, Mode=TwoWay}"
+                                                                  SelectionEndMilliseconds="{Binding PlaybackEndDraft, Mode=TwoWay}"
+                                                                  ToolTip="拖动左右手柄调整起止点；拖动高亮区域可整体移动" />
+                                    <TextBlock HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               IsHitTestVisible="False"
+                                               Text="{Binding PlaybackWaveformStatus}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PlaybackWaveformPeaks.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <Grid Margin="2,8,2,0">
+                                    <TextBlock FontFamily="Cascadia Mono"
+                                               FontSize="9"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding PlaybackWaveformStatus}" />
+                                    <TextBlock HorizontalAlignment="Right"
+                                               FontFamily="Cascadia Mono"
+                                               FontSize="9"
+                                               Foreground="{StaticResource ChampagneTextBrush}"
+                                               Text="{Binding PlaybackTrimLengthSummary}" />
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2158,7 +2209,7 @@
                                    VerticalAlignment="Center"
                                    FontSize="9"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   Text="区间设置精确到毫秒；全局急停仍会立即停止。" />
+                                   Text="波形区间精确到毫秒；全局急停仍会立即停止。" />
                         <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                             <Button Width="110"
                                     Style="{StaticResource AccentButtonStyle}"
