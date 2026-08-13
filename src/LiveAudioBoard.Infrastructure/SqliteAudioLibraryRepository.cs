@@ -1,5 +1,6 @@
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace LiveAudioBoard.Infrastructure;
@@ -21,13 +22,7 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
     public string DatabasePath { get; }
 
     public static SqliteAudioLibraryRepository CreateDefault()
-    {
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard");
-
-        return new SqliteAudioLibraryRepository(Path.Combine(dataDirectory, "library.db"));
-    }
+        => new(LiveAudioBoardDataPaths.DatabasePath);
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -154,7 +149,10 @@ public sealed class SqliteAudioLibraryRepository : IAudioLibraryRepository
                     "ALTER TABLE \"AudioClips\" ADD COLUMN \"PlaybackCooldownMilliseconds\" INTEGER NOT NULL DEFAULT 0;"),
                 (
                     nameof(AudioClip.DisplayOrder),
-                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"DisplayOrder\" INTEGER NOT NULL DEFAULT 0;")
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"DisplayOrder\" INTEGER NOT NULL DEFAULT 0;"),
+                (
+                    nameof(AudioClip.HotkeyEnabled),
+                    "ALTER TABLE \"AudioClips\" ADD COLUMN \"HotkeyEnabled\" INTEGER NOT NULL DEFAULT 1;")
             };
 
             foreach (var missingColumn in missingColumns.Where(item => !columns.Contains(item.Name)))

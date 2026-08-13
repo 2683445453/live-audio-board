@@ -56,6 +56,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Assert.Equal(new string('b', 64), saved.ContentSha256);
             Assert.Equal(AudioPlaybackRoute.LiveAndMonitor, saved.PlaybackRoute);
             Assert.Equal(0, saved.DisplayOrder);
+            Assert.True(saved.HotkeyEnabled);
         }
         finally
         {
@@ -81,6 +82,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Title = "Air horn",
             FilePath = Path.Combine(testDirectory, "air-horn.mp3"),
             Hotkey = "Ctrl+Alt+1",
+            HotkeyEnabled = false,
             DisplayOrder = 7,
             LoopPlayback = true,
             ExclusivePlayback = true,
@@ -105,6 +107,7 @@ public sealed class SqliteAudioLibraryRepositoryTests
 
             var saved = Assert.Single(await repository.GetAllAsync());
             Assert.Equal("Ctrl+Alt+1", saved.Hotkey);
+            Assert.False(saved.HotkeyEnabled);
             Assert.Equal(7, saved.DisplayOrder);
             Assert.True(saved.LoopPlayback);
             Assert.True(saved.ExclusivePlayback);
@@ -124,11 +127,13 @@ public sealed class SqliteAudioLibraryRepositoryTests
             Assert.Equal(500, saved.PlaybackCooldownMilliseconds);
 
             clip.Hotkey = null;
+            clip.HotkeyEnabled = true;
             clip.EnablePeakProtection = false;
             await repository.UpsertAsync(clip);
 
             var cleared = Assert.Single(await repository.GetAllAsync());
             Assert.Null(cleared.Hotkey);
+            Assert.True(cleared.HotkeyEnabled);
             Assert.False(cleared.EnablePeakProtection);
         }
         finally

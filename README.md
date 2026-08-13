@@ -79,7 +79,7 @@
 
 ## 本地数据与隐私
 
-运行数据默认保存在 `%LOCALAPPDATA%\LiveAudioBoard`：
+运行数据默认保存在独立于安装目录的 `%LOCALAPPDATA%\LiveAudioBoard.UserData`：
 
 - `library.db`：资料库数据库；
 - `Media`、`Recordings`、`Renders`：托管音频和生成文件；
@@ -89,7 +89,9 @@
 - `freesound.auth`：由 Windows 当前用户 DPAPI 加密的 Freesound 凭据；
 - `Logs`：本地崩溃诊断日志，默认仅保留最近 20 份。
 
-这些文件不会自动上传，也不会进入 Git 仓库。应用更新只替换安装目录中的程序文件。
+这些文件不会自动上传，也不会进入 Git 仓库。首次运行 0.22.3 或更高版本时，程序会从旧的
+`%LOCALAPPDATA%\LiveAudioBoard` 安全复制现有数据库、媒体和设置；只有完整复制成功后才会
+切换到新目录，旧副本不会被预先删除。
 
 ## 从源码运行
 
@@ -105,11 +107,11 @@ dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ## 构建发行包
 
 ```powershell
-./scripts/verify-release-metadata.ps1 -Version 0.22.2
-./scripts/build-release.ps1 -Version 0.22.2
+./scripts/verify-release-metadata.ps1 -Version 0.22.3
+./scripts/build-release.ps1 -Version 0.22.3
 ```
 
-产物生成到 `artifacts/release-local/releases`。版本标签 `v0.22.2` 会触发 GitHub Actions，
+产物生成到 `artifacts/release-local/releases`。版本标签 `v0.22.3` 会触发 GitHub Actions，
 重新测试并创建 GitHub Release。完整步骤、签名密钥和回滚流程见
 [发布指南](docs/RELEASING.md)。
 

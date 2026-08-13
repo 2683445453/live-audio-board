@@ -18,6 +18,11 @@ internal readonly record struct GlobalHotkeyDefinition(
     string DisplayName)
 {
     private const uint VirtualKeyF10 = 0x79;
+    private const HotkeyModifiers ModifierMask =
+        HotkeyModifiers.Control |
+        HotkeyModifiers.Alt |
+        HotkeyModifiers.Shift |
+        HotkeyModifiers.Windows;
 
     public static GlobalHotkeyDefinition EmergencyStop { get; } = new(
         HotkeyModifiers.Control | HotkeyModifiers.Shift | HotkeyModifiers.NoRepeat,
@@ -28,6 +33,10 @@ internal readonly record struct GlobalHotkeyDefinition(
         VirtualKey == other.VirtualKey &&
         (Modifiers & ~HotkeyModifiers.NoRepeat) ==
         (other.Modifiers & ~HotkeyModifiers.NoRepeat);
+
+    public bool Matches(uint virtualKey, HotkeyModifiers activeModifiers) =>
+        VirtualKey == virtualKey &&
+        (Modifiers & ModifierMask) == (activeModifiers & ModifierMask);
 
     public static bool TryParse(
         string? text,

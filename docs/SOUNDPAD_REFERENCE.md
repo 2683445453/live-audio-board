@@ -10,6 +10,7 @@ LiveAudioBoard 只参考 Soundpad 已公开的产品工作流，不复制其代�
 - [Soundpad 官方使用手册](https://www.leppsoft.com/soundpad/en/help/manual/)
 - [Soundpad 官方录音说明](https://www.leppsoft.com/soundpad/en/help/manual/tutorial/recorder/)
 - [Soundpad 官方播放模式说明](https://www.leppsoft.com/soundpad/en/help/manual/tutorial/playmode/)
+- [Soundpad 官方快捷键说明](https://www.leppsoft.com/soundpad/en/help/manual/tutorial/hotkeys/)
 
 ## 借鉴功能与优先级
 
@@ -18,7 +19,8 @@ LiveAudioBoard 只参考 Soundpad 已公开的产品工作流，不复制其代�
 1. **单条音频全局快捷键**
    - 每条音频可以录入、修改和清除快捷键。
    - 检测重复、系统保留键和紧急停止键冲突。
-   - 提供快捷键总览以及“一键临时禁用全部音效热键”。
+   - 提供快捷键总览、持久化总开关和单条绑定启停。
+   - 可选择拦截快捷键，或像 Soundpad 的 Pass hotkeys 一样继续传给前台软件。
    - 按键按下时触发，并加入防抖，避免按住后连续误播。
 
 2. **播放模式**

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Storage;
 
 namespace LiveAudioBoard.Infrastructure;
 
@@ -15,12 +16,7 @@ public sealed class Sha256LibraryMediaStore : ILibraryMediaStore
     public string MediaDirectory { get; }
 
     public static Sha256LibraryMediaStore CreateDefault()
-    {
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard");
-        return new Sha256LibraryMediaStore(Path.Combine(dataDirectory, "Media"));
-    }
+        => new(LiveAudioBoardDataPaths.MediaDirectory);
 
     public async Task<ManagedMediaFile> IngestAsync(
         string sourcePath,

@@ -9,4 +9,10 @@ public sealed class AppSettings
     public bool EnableEmergencyStopHotkey { get; set; } = true;
 
     public string EmergencyStopHotkey { get; set; } = "Ctrl+Shift+F10";
+
+    public bool EnableSoundHotkeys { get; set; } = true;
+
+    public bool PassSoundHotkeysToForeground { get; set; }
+
+    public List<string> CustomCategories { get; set; } = [];
 }

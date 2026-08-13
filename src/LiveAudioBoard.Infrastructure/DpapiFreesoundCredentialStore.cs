@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using LiveAudioBoard.Core.Downloads;
+using LiveAudioBoard.Core.Storage;
 
 namespace LiveAudioBoard.Infrastructure;
 
@@ -30,13 +31,7 @@ public sealed class DpapiFreesoundCredentialStore : IFreesoundCredentialStore
     public string CredentialPath { get; }
 
     public static DpapiFreesoundCredentialStore CreateDefault()
-    {
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard");
-        return new DpapiFreesoundCredentialStore(
-            Path.Combine(dataDirectory, "freesound.auth"));
-    }
+        => new(LiveAudioBoardDataPaths.FreesoundCredentialPath);
 
     public async Task<FreesoundCredentialSet?> LoadAsync(
         CancellationToken cancellationToken = default)

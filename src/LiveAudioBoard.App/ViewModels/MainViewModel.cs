@@ -16,6 +16,7 @@ using LiveAudioBoard.Core.Models;
 using LiveAudioBoard.Core.Playback;
 using LiveAudioBoard.Core.Recording;
 using LiveAudioBoard.Core.Rendering;
+using LiveAudioBoard.Core.Storage;
 using LiveAudioBoard.Core.Updates;
 using LiveAudioBoard.Providers;
 
@@ -96,17 +97,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _playbackProgressTimer.Tick += OnPlaybackProgressTick;
         _playbackProgressTimer.Start();
 
-        var downloadDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard",
-            "Downloads");
         DownloadCenter = new DownloadCenterViewModel(
             providerCatalog,
             audioSearchProvider,
             audioFeedProvider,
             freesoundApiService,
             playbackService,
-            downloadDirectory,
+            LiveAudioBoardDataPaths.DownloadDirectory,
             ImportDownloadedAudioAsync);
 
         ClipsView = CollectionViewSource.GetDefaultView(Clips);
@@ -145,15 +142,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public string EmergencyStopHotkeyText => _settings.EmergencyStopHotkey;
 
     public string SoundHotkeyToggleText => AreSoundHotkeysEnabled
-        ? "临时停用音效热键"
-        : "重新启用音效热键";
+        ? "停用全部音效热键"
+        : "启用全部音效热键";
+
+    public string PassSoundHotkeysText => PassSoundHotkeysToForeground
+        ? "✓ 保留前台软件原按键功能"
+        : "保留前台软件原按键功能";
+
+    public string HotkeyEnabledDraftText => HotkeyEnabledDraft
+        ? "✓ 此快捷键已启用"
+        : "此快捷键已停用";
 
     public string SoundHotkeyCountSummary
     {
         get
         {
-            var count = Clips.Count(clip => !string.IsNullOrWhiteSpace(clip.Model.Hotkey));
-            return count == 0 ? "尚未绑定音效热键" : $"已绑定 {count} 条音效热键";
+            var bound = Clips.Count(clip => !string.IsNullOrWhiteSpace(clip.Model.Hotkey));
+            var enabled = Clips.Count(clip =>
+                clip.Model.HotkeyEnabled && !string.IsNullOrWhiteSpace(clip.Model.Hotkey));
+            return bound == 0
+                ? "尚未绑定音效热键"
+                : $"已绑定 {bound} 条 · 启用 {enabled} 条";
         }
     }
 
@@ -280,6 +289,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string selectedCategory = "全部音频";
 
     [ObservableProperty]
+    private bool isCategoryCreatorOpen;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateCategoryCommand))]
+    private string newCategoryName = string.Empty;
+
+    [ObservableProperty]
+    private string categoryCreationStatus = string.Empty;
+
+    [ObservableProperty]
     private bool favoritesOnly;
 
     [ObservableProperty]
@@ -401,11 +420,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string hotkeyDraft = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HotkeyEnabledDraftText))]
+    private bool hotkeyEnabledDraft = true;
+
+    [ObservableProperty]
     private string hotkeyCenterStatus = "选择一条音频，然后点击输入框并按下快捷键。";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SoundHotkeyToggleText))]
     private bool areSoundHotkeysEnabled = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PassSoundHotkeysText))]
+    private bool passSoundHotkeysToForeground;
 
     [ObservableProperty]
     private string soundHotkeyRegistrationStatus = "音效热键尚未注册";
@@ -534,6 +561,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken);
+        _settings.CustomCategories ??= [];
+        foreach (var category in _settings.CustomCategories)
+        {
+            EnsureCategory(category);
+        }
+
+        AreSoundHotkeysEnabled = _settings.EnableSoundHotkeys;
+        PassSoundHotkeysToForeground = _settings.PassSoundHotkeysToForeground;
         await DownloadCenter.InitializeAsync(cancellationToken);
 
         var clips = await _repository.GetAllAsync(cancellationToken);
@@ -547,6 +582,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var missingFiles = 0;
         foreach (var clip in orderResult.OrderedClips)
         {
+            var migratedPath = LiveAudioBoardDataPaths.TryMapLegacyPath(clip.FilePath);
+            if (migratedPath is not null &&
+                File.Exists(migratedPath) &&
+                !string.Equals(clip.FilePath, migratedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                clip.FilePath = migratedPath;
+                await _repository.UpsertAsync(clip, cancellationToken);
+            }
+
             if (!File.Exists(clip.FilePath))
             {
                 try
@@ -714,6 +758,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnHotkeyEditingClipChanged(AudioClipViewModel? value)
     {
         HotkeyDraft = value?.Model.Hotkey ?? string.Empty;
+        HotkeyEnabledDraft = value?.Model.HotkeyEnabled ?? true;
         HotkeyCenterStatus = value is null
             ? "请先选择一条音频。"
             : $"正在编辑「{value.Title}」的快捷键";
@@ -838,10 +883,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanStartRecording))]
     private async Task StartRecordingAsync()
     {
-        var outputDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard",
-            "Recordings");
+        var outputDirectory = LiveAudioBoardDataPaths.RecordingDirectory;
         var outputPath = Path.Combine(
             outputDirectory,
             $"recording-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}.wav");
@@ -1400,6 +1442,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         PlaybackEditingClip.RefreshPlaybackSettings();
         PlaybackEditingClip.RefreshLibraryPlacement();
         EnsureCategory(category);
+        if (RememberCustomCategory(category))
+        {
+            await SaveSettingsSafelyAsync();
+        }
+
         PlaybackCategoryDraft = category;
         if (string.Equals(SelectedCategory, previousCategory, StringComparison.OrdinalIgnoreCase))
         {
@@ -1433,10 +1480,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         var format = SelectedExportFormat;
-        var renderDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard",
-            "Renders");
+        var renderDirectory = LiveAudioBoardDataPaths.RenderDirectory;
         var renderPath = Path.Combine(
             renderDirectory,
             $"render-{Guid.NewGuid():N}{format.Extension}");
@@ -1721,6 +1765,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
         SelectedCategory = string.IsNullOrWhiteSpace(category) ? "全部音频" : category;
     }
 
+    [RelayCommand]
+    private void OpenCategoryCreator()
+    {
+        IsCategoryCreatorOpen = true;
+        NewCategoryName = string.Empty;
+        CategoryCreationStatus = "输入分类名称；创建后即使暂时为空也会保留。";
+    }
+
+    [RelayCommand]
+    private void CancelCategoryCreator()
+    {
+        IsCategoryCreatorOpen = false;
+        NewCategoryName = string.Empty;
+        CategoryCreationStatus = string.Empty;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCreateCategory))]
+    private async Task CreateCategoryAsync()
+    {
+        var category = LibraryCategoryName.Resolve(NewCategoryName, Categories);
+        var alreadyExists = Categories.Any(existing => string.Equals(
+            existing,
+            category,
+            StringComparison.OrdinalIgnoreCase));
+        EnsureCategory(category);
+        var settingsChanged = RememberCustomCategory(category);
+        if (settingsChanged)
+        {
+            await SaveSettingsSafelyAsync();
+        }
+
+        FavoritesOnly = false;
+        SelectedCategory = category;
+        CategoryCreationStatus = alreadyExists
+            ? $"分类「{category}」已存在，已切换到该分类。"
+            : $"已创建分类「{category}」。";
+        NewCategoryName = string.Empty;
+        IsCategoryCreatorOpen = false;
+        StatusText = CategoryCreationStatus;
+    }
+
+    private bool CanCreateCategory() => !string.IsNullOrWhiteSpace(NewCategoryName);
+
     [RelayCommand(CanExecute = nameof(CanGoToPreviousLibraryPage))]
     private void PreviousLibraryPage()
     {
@@ -1806,9 +1893,47 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ToggleSoundHotkeys()
     {
         AreSoundHotkeysEnabled = !AreSoundHotkeysEnabled;
+        _settings.EnableSoundHotkeys = AreSoundHotkeysEnabled;
+        _ = SaveSettingsSafelyAsync();
         HotkeyCenterStatus = AreSoundHotkeysEnabled
             ? "音效热键已重新启用。"
-            : "音效热键已临时停用；紧急停止热键仍然有效。";
+            : "音效热键已停用并保存；紧急停止热键仍然有效。";
+        HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void TogglePassSoundHotkeys()
+    {
+        PassSoundHotkeysToForeground = !PassSoundHotkeysToForeground;
+        _settings.PassSoundHotkeysToForeground = PassSoundHotkeysToForeground;
+        _ = SaveSettingsSafelyAsync();
+        HotkeyCenterStatus = PassSoundHotkeysToForeground
+            ? "触发音效后，按键仍会传给当前前台软件。"
+            : "触发音效后，快捷键会被音效板拦截。";
+        HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private async Task ToggleHotkeyEnabledDraftAsync()
+    {
+        if (HotkeyEditingClip is null)
+        {
+            return;
+        }
+
+        HotkeyEnabledDraft = !HotkeyEnabledDraft;
+        if (string.IsNullOrWhiteSpace(HotkeyEditingClip.Model.Hotkey))
+        {
+            return;
+        }
+
+        HotkeyEditingClip.SetHotkeyEnabled(HotkeyEnabledDraft);
+        await _repository.UpsertAsync(HotkeyEditingClip.Model);
+        OnPropertyChanged(nameof(SoundHotkeyCountSummary));
+        HotkeyCenterStatus = HotkeyEnabledDraft
+            ? $"已启用「{HotkeyEditingClip.Title}」的快捷键。"
+            : $"已停用「{HotkeyEditingClip.Title}」的快捷键，绑定仍会保留。";
+        StatusText = HotkeyCenterStatus;
         HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1858,10 +1983,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         HotkeyEditingClip.SetHotkey(definition.DisplayName);
+        HotkeyEditingClip.SetHotkeyEnabled(HotkeyEnabledDraft);
         await _repository.UpsertAsync(HotkeyEditingClip.Model);
         OnPropertyChanged(nameof(SoundHotkeyCountSummary));
         ClearHotkeyCommand.NotifyCanExecuteChanged();
-        HotkeyCenterStatus = $"已将 {definition.DisplayName} 绑定到「{HotkeyEditingClip.Title}」。";
+        HotkeyCenterStatus = HotkeyEnabledDraft
+            ? $"已将 {definition.DisplayName} 绑定到「{HotkeyEditingClip.Title}」。"
+            : $"已保存 {definition.DisplayName}，当前保持停用。";
         StatusText = HotkeyCenterStatus;
         HotkeyBindingsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -1879,7 +2007,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         var title = HotkeyEditingClip.Title;
         HotkeyEditingClip.SetHotkey(null);
+        HotkeyEditingClip.SetHotkeyEnabled(true);
         HotkeyDraft = string.Empty;
+        HotkeyEnabledDraft = true;
         await _repository.UpsertAsync(HotkeyEditingClip.Model);
         OnPropertyChanged(nameof(SoundHotkeyCountSummary));
         ClearHotkeyCommand.NotifyCanExecuteChanged();
@@ -1906,7 +2036,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (!AreSoundHotkeysEnabled)
         {
-            SoundHotkeyRegistrationStatus = "音效热键已临时停用";
+            SoundHotkeyRegistrationStatus = "全部音效热键已停用";
             return;
         }
 
@@ -1918,7 +2048,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (failures.Count > 0)
         {
-            HotkeyCenterStatus = $"以下热键被系统或其他软件占用：{string.Join("、", failures)}";
+            HotkeyCenterStatus = $"以下热键无法启用：{string.Join("、", failures)}";
             StatusText = HotkeyCenterStatus;
         }
     }
@@ -2046,6 +2176,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Categories.Add(normalized);
         }
+    }
+
+    private bool RememberCustomCategory(string category)
+    {
+        var normalized = LibraryCategoryName.Resolve(category, Categories);
+        if (DefaultCategories.Any(item => string.Equals(
+                item,
+                normalized,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        _settings.CustomCategories ??= [];
+        if (_settings.CustomCategories.Any(item => string.Equals(
+                LibraryCategoryName.Normalize(item),
+                normalized,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        _settings.CustomCategories.Add(normalized);
+        return true;
     }
 
     private async Task<AudioClip> ImportDownloadedAudioAsync(

@@ -217,16 +217,65 @@
                             </Button>
                         </StackPanel>
 
-                        <TextBlock Grid.Row="2"
-                                   Margin="10,22,10,8"
-                                   FontSize="12"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Text="分类" />
+                        <Grid Grid.Row="2" Margin="10,18,4,8">
+                            <TextBlock VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="分类" />
+                            <Button Width="28"
+                                    Height="28"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Padding="0"
+                                    FontSize="17"
+                                    Command="{Binding OpenCategoryCreatorCommand}"
+                                    Content="＋"
+                                    ToolTip="创建分类" />
+                        </Grid>
 
                         <ScrollViewer Grid.Row="3"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Categories}">
+                            <StackPanel>
+                                <Border Margin="0,0,4,8"
+                                        Padding="9"
+                                        Background="#0DFFFFFF"
+                                        BorderBrush="#24FFFFFF"
+                                        BorderThickness="1"
+                                        CornerRadius="11">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCategoryCreatorOpen}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBox Height="34"
+                                                 Style="{StaticResource GlassPlainTextBoxStyle}"
+                                                 Text="{Binding NewCategoryName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="输入新分类名称" />
+                                        <StackPanel Margin="0,7,0,0" Orientation="Horizontal">
+                                            <Button Width="76"
+                                                    Height="30"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    Padding="6,3"
+                                                    Command="{Binding CreateCategoryCommand}"
+                                                    Content="创建" />
+                                            <Button Width="76"
+                                                    Height="30"
+                                                    Margin="6,0,0,0"
+                                                    Style="{StaticResource QuietButtonStyle}"
+                                                    Padding="6,3"
+                                                    Command="{Binding CancelCategoryCreatorCommand}"
+                                                    Content="取消" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <ItemsControl ItemsSource="{Binding Categories}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Style="{StaticResource NavButtonStyle}"
@@ -247,7 +296,8 @@
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ItemsControl>
+                            </StackPanel>
                         </ScrollViewer>
 
                         <StackPanel Grid.Row="4" Margin="0,12,0,0">
@@ -460,7 +510,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Width="226"
-                                                Height="210"
+                                                Height="224"
                                                 Margin="0,0,12,12"
                                                 Padding="18"
                                                 AllowDrop="True"
@@ -522,7 +572,7 @@
                                                     </StackPanel>
                                                 </Grid>
 
-                                                <StackPanel Grid.Row="1" Margin="0,8,0,8" VerticalAlignment="Center">
+                                                <StackPanel Grid.Row="1" Margin="0,10,0,10" VerticalAlignment="Center">
                                                     <TextBlock FontSize="15"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource TextPrimaryBrush}"
@@ -537,6 +587,8 @@
                                                     </TextBlock>
                                                     <TextBlock Margin="0,4,0,0"
                                                                FontSize="9"
+                                                               LineHeight="14"
+                                                               MaxHeight="14"
                                                                Foreground="{StaticResource ChampagneTextBrush}"
                                                                Text="{Binding PlaybackSettingsSummary}"
                                                                TextTrimming="CharacterEllipsis" />
@@ -722,7 +774,7 @@
                                        Text="{Binding ActivePlaybackSummary}" />
                         </Grid>
 
-                        <StackPanel Grid.Row="1" Margin="0,24,0,22">
+                        <StackPanel Grid.Row="1" Margin="0,14,0,12">
                             <TextBlock FontSize="11"
                                        Foreground="{StaticResource TextMutedBrush}"
                                        Text="当前音频" />
@@ -737,7 +789,7 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Text="{Binding NowPlayingSubtitle}"
                                        TextWrapping="Wrap" />
-                            <ProgressBar Margin="0,15,0,0"
+                            <ProgressBar Margin="0,10,0,0"
                                          Style="{StaticResource GlassProgressBarStyle}"
                                          Maximum="100"
                                          Value="{Binding NowPlayingProgressPercent}" />
@@ -751,7 +803,7 @@
 
                         <Rectangle Grid.Row="2" Fill="#1FFFFFFF" />
 
-                        <StackPanel Grid.Row="3" Margin="0,22,0,0">
+                        <StackPanel Grid.Row="3" Margin="0,14,0,0">
                             <Grid>
                                 <StackPanel>
                                     <TextBlock FontSize="11"
@@ -802,34 +854,23 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="4" Margin="0,20,0,0">
-                            <TextBlock FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       Text="OBS 设置提示" />
-                            <TextBlock Margin="0,9,0,0"
-                                       FontSize="11"
-                                       LineHeight="19"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       TextWrapping="Wrap"
-                                       Text="需要隔离时，将直播输出设为虚拟声卡并让 OBS 捕获该设备；应用程序音频捕获可能同时包含监听。" />
-                            <Border Margin="0,14,0,0"
-                                    Padding="12,10"
+                            <Border Margin="0,10,0,0"
+                                    Padding="11,7"
                                     Background="#0FFFFFFF"
                                     BorderBrush="#1FFFFFFF"
                                     BorderThickness="1"
-                                    CornerRadius="12">
+                                    CornerRadius="11"
+                                    ToolTip="需要隔离时，将直播输出设为虚拟声卡并让 OBS 捕获该设备；应用程序音频捕获可能同时包含监听。">
                                 <StackPanel>
                                     <TextBlock FontSize="10"
-                                               Foreground="{StaticResource ChampagneTextBrush}"
-                                               Text="全局急停" />
-                                    <TextBlock Margin="0,4,0,0"
-                                               FontSize="10"
-                                               LineHeight="16"
                                                Foreground="{StaticResource TextMutedBrush}"
-                                               Text="{Binding EmergencyHotkeyStatus}"
-                                               TextWrapping="Wrap" />
+                                               Text="OBS 设置提示" />
+                                    <TextBlock Margin="0,5,0,0"
+                                               FontSize="9"
+                                               LineHeight="15"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Text="隔离时，请让 OBS 捕获虚拟声卡输出。" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -2258,7 +2299,7 @@
             </Ellipse>
 
             <Border Width="860"
-                    Height="570"
+                    Height="610"
                     Padding="26"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -2454,6 +2495,12 @@
                                         Style="{StaticResource QuietButtonStyle}"
                                         Command="{Binding ClearHotkeyCommand}"
                                         Content="清除绑定" />
+                                <Button Width="152"
+                                        Margin="8,0,0,0"
+                                        Style="{StaticResource QuietButtonStyle}"
+                                        Padding="8,4"
+                                        Command="{Binding ToggleHotkeyEnabledDraftCommand}"
+                                        Content="{Binding HotkeyEnabledDraftText}" />
                             </StackPanel>
 
                             <Border Margin="0,22,0,16"
@@ -2483,6 +2530,19 @@
                                         Command="{Binding ToggleSoundHotkeysCommand}"
                                         Content="{Binding SoundHotkeyToggleText}" />
                             </Grid>
+                            <Button Width="238"
+                                    Height="34"
+                                    Margin="0,11,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource QuietButtonStyle}"
+                                    Padding="8,4"
+                                    Command="{Binding TogglePassSoundHotkeysCommand}"
+                                    Content="{Binding PassSoundHotkeysText}" />
+                            <TextBlock Margin="2,6,0,0"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       Text="开启后，触发音效的按键仍会继续传给当前前台软件。"
+                                       TextWrapping="Wrap" />
                         </StackPanel>
                     </Grid>
 

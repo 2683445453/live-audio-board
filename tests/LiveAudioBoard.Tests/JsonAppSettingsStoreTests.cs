@@ -19,7 +19,10 @@ public sealed class JsonAppSettingsStoreTests
             OutputDeviceId = "test-output-device",
             MonitorOutputDeviceId = "test-monitor-device",
             EnableEmergencyStopHotkey = false,
-            EmergencyStopHotkey = "Ctrl+Shift+F10"
+            EmergencyStopHotkey = "Ctrl+Shift+F10",
+            EnableSoundHotkeys = false,
+            PassSoundHotkeysToForeground = true,
+            CustomCategories = ["直播暖场", "提示音"]
         };
 
         try
@@ -32,6 +35,11 @@ public sealed class JsonAppSettingsStoreTests
             Assert.Equal(expected.MonitorOutputDeviceId, actual.MonitorOutputDeviceId);
             Assert.Equal(expected.EnableEmergencyStopHotkey, actual.EnableEmergencyStopHotkey);
             Assert.Equal(expected.EmergencyStopHotkey, actual.EmergencyStopHotkey);
+            Assert.Equal(expected.EnableSoundHotkeys, actual.EnableSoundHotkeys);
+            Assert.Equal(
+                expected.PassSoundHotkeysToForeground,
+                actual.PassSoundHotkeysToForeground);
+            Assert.Equal(expected.CustomCategories, actual.CustomCategories);
         }
         finally
         {
@@ -58,5 +66,8 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(AudioOutputDevice.FollowDefaultDeviceId, settings.MonitorOutputDeviceId);
         Assert.True(settings.EnableEmergencyStopHotkey);
         Assert.Equal("Ctrl+Shift+F10", settings.EmergencyStopHotkey);
+        Assert.True(settings.EnableSoundHotkeys);
+        Assert.False(settings.PassSoundHotkeysToForeground);
+        Assert.Empty(settings.CustomCategories);
     }
 }

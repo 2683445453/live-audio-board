@@ -52,6 +52,8 @@ public sealed class AudioClip
 
     public string? Hotkey { get; set; }
 
+    public bool HotkeyEnabled { get; set; } = true;
+
     public string? SourceProvider { get; set; }
 
     public string? SourceUrl { get; set; }

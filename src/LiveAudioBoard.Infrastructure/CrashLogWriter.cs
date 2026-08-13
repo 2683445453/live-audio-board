@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using LiveAudioBoard.Core.Storage;
 
 namespace LiveAudioBoard.Infrastructure;
 
@@ -21,13 +22,7 @@ public sealed class CrashLogWriter
     public string LogDirectory { get; }
 
     public static CrashLogWriter CreateDefault()
-    {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard",
-            "Logs");
-        return new CrashLogWriter(root);
-    }
+        => new(LiveAudioBoardDataPaths.LogDirectory);
 
     public string? TryWrite(Exception exception, string source)
     {

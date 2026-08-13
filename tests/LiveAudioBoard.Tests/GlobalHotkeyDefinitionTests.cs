@@ -49,6 +49,26 @@ public sealed class GlobalHotkeyDefinitionTests
     }
 
     [Fact]
+    public void Matches_RequiresTheExactModifierCombination()
+    {
+        GlobalHotkeyDefinition.TryParse(
+            "Ctrl+Alt+1",
+            out var definition,
+            out _);
+
+        Assert.True(definition.Matches(
+            0x31,
+            HotkeyModifiers.Control | HotkeyModifiers.Alt));
+        Assert.False(definition.Matches(0x31, HotkeyModifiers.Control));
+        Assert.False(definition.Matches(
+            0x31,
+            HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Shift));
+        Assert.False(definition.Matches(
+            0x32,
+            HotkeyModifiers.Control | HotkeyModifiers.Alt));
+    }
+
+    [Fact]
     public void Validator_RejectsEmergencyStopAndExistingClipBinding()
     {
         var targetId = Guid.NewGuid();

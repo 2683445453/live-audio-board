@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LiveAudioBoard.Core.Abstractions;
 using LiveAudioBoard.Core.Models;
+using LiveAudioBoard.Core.Storage;
 
 namespace LiveAudioBoard.Infrastructure;
 
@@ -22,13 +23,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
     public string SettingsPath { get; }
 
     public static JsonAppSettingsStore CreateDefault()
-    {
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LiveAudioBoard");
-
-        return new JsonAppSettingsStore(Path.Combine(dataDirectory, "settings.json"));
-    }
+        => new(LiveAudioBoardDataPaths.SettingsPath);
 
     public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
     {

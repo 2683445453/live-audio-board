@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private const int MaximumHotkeyId = 0xBFFF;
 
     private WindowsGlobalHotkeyService? _globalHotkeyService;
+    private WindowsKeyboardHotkeyService? _soundHotkeyService;
     private readonly List<int> _soundHotkeyIds = [];
     private Point _audioCardDragStart;
     private AudioClipViewModel? _audioCardDragSource;
@@ -188,6 +189,16 @@ public partial class MainWindow : Window
         }
 
         _globalHotkeyService = new WindowsGlobalHotkeyService(new WindowInteropHelper(this).Handle);
+        try
+        {
+            _soundHotkeyService = new WindowsKeyboardHotkeyService(Dispatcher);
+        }
+        catch (Exception exception)
+        {
+            viewModel.SetSoundHotkeyRegistrationSummary(
+                0,
+                [$"Windows 键盘监听不可用（{exception.Message}）"]);
+        }
         if (viewModel.EnableEmergencyStopHotkey)
         {
             var registered = _globalHotkeyService.TryRegister(
@@ -213,17 +224,18 @@ public partial class MainWindow : Window
 
     private void RefreshSoundHotkeys(MainViewModel viewModel)
     {
-        if (_globalHotkeyService is null)
+        if (_soundHotkeyService is null)
         {
             return;
         }
 
         foreach (var id in _soundHotkeyIds)
         {
-            _globalHotkeyService.Unregister(id);
+            _soundHotkeyService.Unregister(id);
         }
 
         _soundHotkeyIds.Clear();
+        _soundHotkeyService.PassThrough = viewModel.PassSoundHotkeysToForeground;
         if (!viewModel.AreSoundHotkeysEnabled)
         {
             viewModel.SetSoundHotkeyRegistrationSummary(0, []);
@@ -236,6 +248,11 @@ public partial class MainWindow : Window
 
         foreach (var clip in viewModel.Clips)
         {
+            if (!clip.Model.HotkeyEnabled)
+            {
+                continue;
+            }
+
             if (!GlobalHotkeyDefinition.TryParse(
                     clip.Model.Hotkey,
                     out var definition,
@@ -251,7 +268,7 @@ public partial class MainWindow : Window
             }
 
             var id = nextId++;
-            if (_globalHotkeyService.TryRegister(
+            if (_soundHotkeyService.TryRegister(
                     id,
                     definition,
                     () => viewModel.PlayCommand.Execute(clip),
@@ -304,6 +321,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         StateChanged -= OnWindowStateChanged;
+        _soundHotkeyService?.Dispose();
         _globalHotkeyService?.Dispose();
         if (DataContext is MainViewModel viewModel)
         {

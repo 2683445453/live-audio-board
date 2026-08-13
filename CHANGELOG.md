@@ -7,6 +7,24 @@ All notable changes to LiveAudioBoard are documented in this file. The project f
 
 No unreleased changes.
 
+## [0.22.3] - 2026-08-13
+
+### Added
+
+- Persistent user-created categories, including empty categories, with an inline library creator.
+- Persistent master and per-audio hotkey switches plus optional pass-through to the foreground app.
+- A safe `--migrate-user-data` recovery command for migration without opening the interface.
+
+### Fixed
+
+- Moved the database, managed media, downloads, recordings, settings, backups, credentials, and logs
+  out of the Velopack install root into `%LOCALAPPDATA%\LiveAudioBoard.UserData`.
+- Added staged, non-destructive migration of recognized legacy data and automatic remapping of managed
+  media paths so existing downloads survive reinstall and update cleanup.
+- Prevented playback summary text inside audio cards from clipping at scaled Windows display sizes.
+- Made the OBS guidance area scroll within its own row so it can no longer overlap the emergency stop
+  button.
+
 ## [0.22.2] - 2026-08-13
 
 ### Added
@@ -64,7 +82,8 @@ No unreleased changes.
 - Runtime dependencies are scanned for known NuGet vulnerabilities in release verification.
 - Project licensing standardized on PolyForm Noncommercial 1.0.0 with separate commercial licensing.
 
-[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.2...HEAD
+[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.3...HEAD
+[0.22.3]: https://github.com/2683445453/live-audio-board/compare/v0.22.2...v0.22.3
 [0.22.2]: https://github.com/2683445453/live-audio-board/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/2683445453/live-audio-board/releases/tag/v0.22.1
 [0.22.0]: https://github.com/2683445453/live-audio-board/releases/tag/v0.22.0

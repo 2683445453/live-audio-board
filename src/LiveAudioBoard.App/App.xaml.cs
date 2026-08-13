@@ -20,6 +20,21 @@ public partial class App : Application
     public static void Main(string[] args)
     {
         VelopackApp.Build().Run();
+        if (args.Contains("--migrate-user-data", StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                LiveAudioBoardUserDataMigration.MigrateDefault();
+                Environment.ExitCode = 0;
+            }
+            catch
+            {
+                Environment.ExitCode = 1;
+            }
+
+            return;
+        }
+
         var application = new App();
         application.InitializeComponent();
         application.Run();
@@ -32,6 +47,7 @@ public partial class App : Application
 
         try
         {
+            var migrationResult = LiveAudioBoardUserDataMigration.MigrateDefault();
             var repository = SqliteAudioLibraryRepository.CreateDefault();
             await repository.InitializeAsync();
             LibraryBackupResult? backupResult = null;
@@ -78,6 +94,11 @@ public partial class App : Application
                 new VelopackAppUpdateService());
 
             await viewModel.InitializeAsync();
+            if (migrationResult.Migrated)
+            {
+                viewModel.StatusText += $" · 已安全迁移 {migrationResult.FileCount} 个用户文件";
+            }
+
             if (backupResult?.Created == true)
             {
                 viewModel.StatusText += " · 已创建自动备份";

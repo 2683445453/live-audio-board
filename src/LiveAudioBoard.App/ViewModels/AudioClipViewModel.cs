@@ -31,7 +31,11 @@ public partial class AudioClipViewModel : ObservableObject
 
     public string DurationText => Model.DurationText;
 
-    public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey) ? "未绑定" : Model.Hotkey;
+    public string HotkeyText => string.IsNullOrWhiteSpace(Model.Hotkey)
+        ? "未绑定"
+        : Model.HotkeyEnabled
+            ? Model.Hotkey
+            : $"{Model.Hotkey}（停用）";
 
     public string PlaybackSettingsSummary
     {
@@ -182,6 +186,12 @@ public partial class AudioClipViewModel : ObservableObject
     public void SetHotkey(string? hotkey)
     {
         Model.Hotkey = string.IsNullOrWhiteSpace(hotkey) ? null : hotkey.Trim();
+        OnPropertyChanged(nameof(HotkeyText));
+    }
+
+    public void SetHotkeyEnabled(bool enabled)
+    {
+        Model.HotkeyEnabled = enabled;
         OnPropertyChanged(nameof(HotkeyText));
     }
 

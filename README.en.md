@@ -60,11 +60,13 @@ Windows 10/11 x64 and .NET SDK 10.0.302 are required.
 dotnet restore LiveAudioBoard.sln
 dotnet build LiveAudioBoard.sln --configuration Release --no-restore
 dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
-./scripts/build-release.ps1 -Version 0.22.2
+./scripts/build-release.ps1 -Version 0.22.3
 ```
 
-Runtime data stays in `%LOCALAPPDATA%\LiveAudioBoard` and is not uploaded automatically. Freesound
-credentials are encrypted for the current Windows user with DPAPI.
+Runtime data stays in `%LOCALAPPDATA%\LiveAudioBoard.UserData`, separate from the Velopack install
+directory, and is not uploaded automatically. Version 0.22.3 and later safely copy recognized data
+from the legacy directory before switching. Freesound credentials are encrypted for the current
+Windows user with DPAPI.
 
 ## Licensing
 

@@ -25,10 +25,10 @@ LiveAudioBoard 是一款仅面向 Windows 的直播音频面板。核心使用�
 
 ## 资料库存储
 
-默认根目录为 `%LOCALAPPDATA%\LiveAudioBoard`：
+默认根目录为 `%LOCALAPPDATA%\LiveAudioBoard.UserData`，与 Velopack 安装目录彻底分离：
 
 ```text
-LiveAudioBoard/
+LiveAudioBoard.UserData/
 ├─ Media/       SHA-256 内容寻址的正式媒体文件
 ├─ Downloads/   下载中的 .part 临时文件
 ├─ Renders/     音频编辑导出的临时文件
@@ -41,6 +41,9 @@ LiveAudioBoard/
 从 MVP 0.5 起，新导入与下载文件会复制到正式媒体库并按 SHA-256 去重；旧版本记录的
 外部路径保持原状，后续通过显式迁移工具处理。数据库每 24 小时创建一致性快照，默认
 保留最近 10 份。
+
+0.22.3 加入原子式旧目录迁移：先复制到同级暂存目录，完整成功后再重命名为正式用户目录；
+安装程序、`current` 和 `packages` 等 Velopack 文件不会被复制。
 
 ## 功能优先级
 
