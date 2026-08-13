@@ -105,11 +105,11 @@ dotnet run --project src/LiveAudioBoard.App/LiveAudioBoard.App.csproj
 ## 构建发行包
 
 ```powershell
-./scripts/verify-release-metadata.ps1 -Version 0.22.1
-./scripts/build-release.ps1 -Version 0.22.1
+./scripts/verify-release-metadata.ps1 -Version 0.22.2
+./scripts/build-release.ps1 -Version 0.22.2
 ```
 
-产物生成到 `artifacts/release-local/releases`。版本标签 `v0.22.1` 会触发 GitHub Actions，
+产物生成到 `artifacts/release-local/releases`。版本标签 `v0.22.2` 会触发 GitHub Actions，
 重新测试并创建 GitHub Release。完整步骤、签名密钥和回滚流程见
 [发布指南](docs/RELEASING.md)。
 

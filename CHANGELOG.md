@@ -7,7 +7,7 @@ All notable changes to LiveAudioBoard are documented in this file. The project f
 
 No unreleased changes.
 
-## [0.22.1] - 2026-08-13
+## [0.22.2] - 2026-08-13
 
 ### Added
 
@@ -20,6 +20,16 @@ No unreleased changes.
 - Corrected playback-route, recording-source, and export-format option labels in custom combo boxes.
 - Removed clipping from audio cards and the persistent player at Windows display scaling above 100%.
 - Replaced native scroll bars and refined range sliders to match the glassmorphism interface.
+
+### Release
+
+- Aligned project, build-script, workflow, and changelog versions so tagged packages pass release
+  metadata validation.
+
+## [0.22.1] - 2026-08-12
+
+- No installable artifacts were produced because release validation detected that the project was
+  still declared as `0.22.0`. This empty release is superseded by `0.22.2`.
 
 ## [0.22.0] - 2026-08-11
 
@@ -54,6 +64,7 @@ No unreleased changes.
 - Runtime dependencies are scanned for known NuGet vulnerabilities in release verification.
 - Project licensing standardized on PolyForm Noncommercial 1.0.0 with separate commercial licensing.
 
-[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.1...HEAD
-[0.22.1]: https://github.com/2683445453/live-audio-board/compare/v0.22.0...v0.22.1
+[Unreleased]: https://github.com/2683445453/live-audio-board/compare/v0.22.2...HEAD
+[0.22.2]: https://github.com/2683445453/live-audio-board/compare/v0.22.1...v0.22.2
+[0.22.1]: https://github.com/2683445453/live-audio-board/releases/tag/v0.22.1
 [0.22.0]: https://github.com/2683445453/live-audio-board/releases/tag/v0.22.0

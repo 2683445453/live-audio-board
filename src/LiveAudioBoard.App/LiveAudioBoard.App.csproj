@@ -38,7 +38,7 @@
     <RootNamespace>LiveAudioBoard.App</RootNamespace>
     <StartupObject>LiveAudioBoard.App.App</StartupObject>
     <ApplicationIcon>..\..\assets\branding\app-icon.ico</ApplicationIcon>
-    <Version>0.22.1</Version>
+    <Version>0.22.2</Version>
     <Product>LiveAudioBoard</Product>
     <AssemblyTitle>LiveAudioBoard</AssemblyTitle>
     <Description>Windows 直播音频面板</Description>

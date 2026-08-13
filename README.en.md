@@ -60,7 +60,7 @@ Windows 10/11 x64 and .NET SDK 10.0.302 are required.
 dotnet restore LiveAudioBoard.sln
 dotnet build LiveAudioBoard.sln --configuration Release --no-restore
 dotnet test LiveAudioBoard.sln --configuration Release --no-build --no-restore
-./scripts/build-release.ps1 -Version 0.22.1
+./scripts/build-release.ps1 -Version 0.22.2
 ```
 
 Runtime data stays in `%LOCALAPPDATA%\LiveAudioBoard` and is not uploaded automatically. Freesound
